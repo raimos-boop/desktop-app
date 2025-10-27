@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Professional Email Signature Editor
+Professional Email Signature Editor with Draggable/Resizable Images
 Similar to Outlook's signature editor with live preview
 No visible HTML code - only rendered signature
 """
@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, simpledialog, filedialog, colorchooser
 from tkinter import font as tkfont
 import base64
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
@@ -32,14 +32,27 @@ class SignatureElement:
     image_height: Optional[int] = None
 
 
+@dataclass
+class DraggableImage:
+    """Represents a draggable/resizable image"""
+    canvas_id: int
+    text_index: str  # Position in text widget
+    image_data: str  # Base64 data
+    width: int
+    height: int
+    original_width: int
+    original_height: int
+    photo_image: tk.PhotoImage
+
+
 class ImprovedSignatureEditor(tk.Toplevel):
     """
-    Professional signature editor with live preview.
+    Professional signature editor with live preview and draggable images.
 
     Features:
     - Rich text editing with live preview
     - Formatting toolbar (bold, italic, font, size, color)
-    - Easy image/logo insertion
+    - Draggable and resizable images/logos
     - No visible HTML code
     - Auto-save functionality
     - Professional layout similar to Outlook
@@ -75,6 +88,13 @@ class ImprovedSignatureEditor(tk.Toplevel):
         self.images_data = []  # Store multiple images
         self.templates = {}  # Store signature templates
         self.preview_images = []  # Keep references to preview images
+        self.draggable_images = []  # Store draggable image objects
+        
+        # Image dragging/resizing state
+        self.selected_image = None
+        self.drag_start_x = 0
+        self.drag_start_y = 0
+        self.resize_mode = None  # 'se', 'sw', 'ne', 'nw', 'e', 'w', 'n', 's', or None
 
         self._setup_window()
         self._create_ui()
@@ -122,14 +142,14 @@ class ImprovedSignatureEditor(tk.Toplevel):
 
         title_label = ttk.Label(
             header_frame,
-            text="✉️ Email Signature Editor", # Corrected
+            text="✉️ Email Signature Editor",
             font=("Arial", 16, "bold")
         )
         title_label.pack(side=tk.LEFT)
 
         subtitle_label = ttk.Label(
             header_frame,
-            text="Create a professional signature with live preview",
+            text="Create a professional signature with live preview - Drag & resize images!",
             font=("Arial", 9),
             foreground="gray"
         )
@@ -201,16 +221,16 @@ class ImprovedSignatureEditor(tk.Toplevel):
         self.color_var = tk.StringVar(value="#000000")
         color_btn = ttk.Button(
             row1,
-            text="🎨 Color", # Corrected
+            text="🎨 Color",
             command=self._choose_color
         )
         color_btn.pack(side=tk.LEFT, padx=(10, 2))
 
         # Alignment buttons
         ttk.Separator(row1, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-        ttk.Button(row1, text="⬅️", width=3, command=lambda: self._set_alignment("left")).pack(side=tk.LEFT, padx=2) # Corrected
-        ttk.Button(row1, text="↔️", width=3, command=lambda: self._set_alignment("center")).pack(side=tk.LEFT, padx=2) # Corrected (using a different center icon)
-        ttk.Button(row1, text="➡️", width=3, command=lambda: self._set_alignment("right")).pack(side=tk.LEFT, padx=2) # Corrected
+        ttk.Button(row1, text="⬅️", width=3, command=lambda: self._set_alignment("left")).pack(side=tk.LEFT, padx=2)
+        ttk.Button(row1, text="↔️", width=3, command=lambda: self._set_alignment("center")).pack(side=tk.LEFT, padx=2)
+        ttk.Button(row1, text="➡️", width=3, command=lambda: self._set_alignment("right")).pack(side=tk.LEFT, padx=2)
 
         # Row 2: Content tools
         row2 = ttk.Frame(toolbar_frame)
@@ -219,28 +239,28 @@ class ImprovedSignatureEditor(tk.Toplevel):
         # Template management
         ttk.Button(
             row2,
-            text="📋 Templates", # Corrected
+            text="📋 Templates",
             command=self._manage_templates
         ).pack(side=tk.LEFT, padx=2)
 
         # Quick templates
         ttk.Button(
             row2,
-            text="📝 Add Contact Info", # Corrected
+            text="📝 Add Contact Info",
             command=self._add_contact_template
         ).pack(side=tk.LEFT, padx=2)
 
         # Image insertion
         ttk.Button(
             row2,
-            text="🖼️ Insert Logo/Image", # Corrected
+            text="🖼️ Insert Logo/Image",
             command=self._insert_image
         ).pack(side=tk.LEFT, padx=2)
 
         # Social media links
         ttk.Button(
             row2,
-            text="🔗 Add Social Links", # Corrected
+            text="🔗 Add Social Links",
             command=self._add_social_links
         ).pack(side=tk.LEFT, padx=2)
 
@@ -250,7 +270,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
         # Clear button
         ttk.Button(
             row2,
-            text="🗑️ Clear All", # Corrected
+            text="🗑️ Clear All",
             command=self._clear_signature
         ).pack(side=tk.LEFT, padx=2)
 
@@ -260,7 +280,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
         split_frame.pack(fill=tk.BOTH, expand=True)
 
         # Left side: Rich text editor
-        left_frame = ttk.LabelFrame(split_frame, text="✏️ Edit Signature", padding=10) # Corrected
+        left_frame = ttk.LabelFrame(split_frame, text="✏️ Edit Signature", padding=10)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
 
         # Create text editor with formatting support
@@ -283,33 +303,36 @@ class ImprovedSignatureEditor(tk.Toplevel):
         # Configure text tags for formatting
         self._configure_text_tags()
 
-        # Right side: Live preview
-        right_frame = ttk.LabelFrame(split_frame, text="👁️ Live Preview", padding=10) # Corrected
+        # Right side: Live preview with canvas for draggable images
+        right_frame = ttk.LabelFrame(split_frame, text="👁️ Live Preview (Drag images to reposition)", padding=10)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
 
-        # Preview text widget (read-only, styled)
-        preview_scroll = ttk.Scrollbar(right_frame)
-        preview_scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.preview = tk.Text(
-            right_frame,
-            wrap=tk.WORD,
-            state='disabled',
-            bg="#ffffff",
+        # Preview canvas for draggable images
+        preview_canvas_frame = ttk.Frame(right_frame)
+        preview_canvas_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.preview_canvas = tk.Canvas(
+            preview_canvas_frame,
+            bg="white",
             relief=tk.SUNKEN,
-            borderwidth=2,
-            yscrollcommand=preview_scroll.set
+            borderwidth=2
         )
-        self.preview.pack(fill=tk.BOTH, expand=True)
-        preview_scroll.config(command=self.preview.yview)
-
-        # Configure preview tags
-        self._configure_preview_tags()
+        preview_scrollbar = ttk.Scrollbar(preview_canvas_frame, orient=tk.VERTICAL, command=self.preview_canvas.yview)
+        self.preview_canvas.configure(yscrollcommand=preview_scrollbar.set)
+        
+        preview_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.preview_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Bind mouse events for dragging and resizing
+        self.preview_canvas.bind("<Button-1>", self._on_canvas_click)
+        self.preview_canvas.bind("<B1-Motion>", self._on_canvas_drag)
+        self.preview_canvas.bind("<ButtonRelease-1>", self._on_canvas_release)
+        self.preview_canvas.bind("<Motion>", self._on_canvas_motion)
 
         # Add instructions
         instructions = ttk.Label(
             parent,
-            text="💡 Tip: Type your signature on the left, see live preview on the right. Select text to apply formatting.", # Corrected
+            text="💡 Tip: Type your signature on the left. In preview, click & drag images to move them, drag corners to resize!",
             foreground="blue",
             font=("Arial", 9)
         )
@@ -323,7 +346,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
         # Save button (primary action)
         save_btn = ttk.Button(
             button_frame,
-            text="💾 Save Signature", # Corrected
+            text="💾 Save Signature",
             command=self._save_signature,
             width=20
         )
@@ -332,7 +355,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
         # Export HTML button
         export_btn = ttk.Button(
             button_frame,
-            text="📤 Export HTML", # Corrected
+            text="📤 Export HTML",
             command=self._export_html,
             width=20
         )
@@ -341,7 +364,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
         # Test email button
         test_btn = ttk.Button(
             button_frame,
-            text="📧 Send Test Email", # Corrected
+            text="📧 Send Test Email",
             command=self._send_test_email,
             width=20
         )
@@ -350,7 +373,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
         # Close button
         close_btn = ttk.Button(
             button_frame,
-            text="❌ Close", # Corrected
+            text="❌ Close",
             command=self.destroy,
             width=15
         )
@@ -377,17 +400,6 @@ class ImprovedSignatureEditor(tk.Toplevel):
         self.editor.tag_configure("left", justify=tk.LEFT)
         self.editor.tag_configure("center", justify=tk.CENTER)
         self.editor.tag_configure("right", justify=tk.RIGHT)
-
-    def _configure_preview_tags(self) -> None:
-        """Configure text tags for the preview"""
-        # Similar to editor tags but for preview
-        self.preview.tag_configure("bold", font=("Arial", 12, "bold"))
-        self.preview.tag_configure("italic", font=("Arial", 12, "italic"))
-        self.preview.tag_configure("underline", underline=True)
-        self.preview.tag_configure("image", justify=tk.LEFT)
-        self.preview.tag_configure("left", justify=tk.LEFT)
-        self.preview.tag_configure("center", justify=tk.CENTER)
-        self.preview.tag_configure("right", justify=tk.RIGHT)
 
     def _toggle_bold(self) -> None:
         """Toggle bold formatting on selected text"""
@@ -474,7 +486,6 @@ class ImprovedSignatureEditor(tk.Toplevel):
                 # Create or update color tag
                 tag_name = f"color_{color[1].replace('#', '')}"
                 self.editor.tag_configure(tag_name, foreground=color[1])
-                self.preview.tag_configure(tag_name, foreground=color[1])
                 self.editor.tag_add(tag_name, sel_start, sel_end)
 
                 self._schedule_preview_update()
@@ -518,7 +529,6 @@ class ImprovedSignatureEditor(tk.Toplevel):
             tag_name = f"font_{font_family}_{font_size}"
             font_obj = tkfont.Font(family=font_family, size=font_size)
             self.editor.tag_configure(tag_name, font=font_obj)
-            self.preview.tag_configure(tag_name, font=font_obj)
             self.editor.tag_add(tag_name, sel_start, sel_end)
 
             self._schedule_preview_update()
@@ -593,11 +603,11 @@ class ImprovedSignatureEditor(tk.Toplevel):
             # Contact details with icons
             contact_line = []
             if fields["Phone"].get().strip():
-                contact_line.append(f"📞 {fields['Phone'].get().strip()}") # Corrected
+                contact_line.append(f"📞 {fields['Phone'].get().strip()}")
             if fields["Mobile"].get().strip():
-                contact_line.append(f"📱 {fields['Mobile'].get().strip()}") # Corrected
+                contact_line.append(f"📱 {fields['Mobile'].get().strip()}")
             if fields["Email"].get().strip():
-                contact_line.append(f"✉️ {fields['Email'].get().strip()}") # Corrected
+                contact_line.append(f"✉️ {fields['Email'].get().strip()}")
 
             if contact_line:
                 contact_text = " | ".join(contact_line) + "\n"
@@ -606,7 +616,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
 
             website = fields["Website"].get().strip()
             if website:
-                website_text = f"🌐 {website}\n" # Corrected
+                website_text = f"🌐 {website}\n"
                 self.editor.insert(insert_pos, website_text)
 
             self._schedule_preview_update()
@@ -678,7 +688,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
 
             messagebox.showinfo(
                 "Image Added",
-                f"Image added successfully ({max_width}x{new_height}px)\n\nImage reference: #{len(self.images_data)}",
+                f"Image added successfully ({max_width}x{new_height}px)\n\nImage reference: #{len(self.images_data)}\n\nIn preview, you can drag the image to reposition it and drag corners to resize!",
                 parent=self
             )
 
@@ -708,12 +718,12 @@ class ImprovedSignatureEditor(tk.Toplevel):
         # Social media fields
         fields = {}
         social_platforms = [
-            ("LinkedIn", "🔗"), # Corrected
-            ("Twitter/X", "🐦"), # Corrected
-            ("Facebook", "📘"), # Corrected
-            ("Instagram", "📷"), # Corrected
-            ("GitHub", "💻"), # Corrected
-            ("Website", "🌐") # Corrected
+            ("LinkedIn", "🔗"),
+            ("Twitter/X", "🐦"),
+            ("Facebook", "📘"),
+            ("Instagram", "📷"),
+            ("GitHub", "💻"),
+            ("Website", "🌐")
         ]
 
         for i, (platform, icon) in enumerate(social_platforms):
@@ -817,9 +827,9 @@ class ImprovedSignatureEditor(tk.Toplevel):
                     template_list.delete(selection[0])
                     self._save_templates_to_db()
 
-        ttk.Button(btn_frame, text="💾 Save Current", command=save_template, width=15).pack(side=tk.LEFT, padx=2) # Corrected
-        ttk.Button(btn_frame, text="📥 Load", command=load_template, width=15).pack(side=tk.LEFT, padx=2) # Corrected
-        ttk.Button(btn_frame, text="🗑️ Delete", command=delete_template, width=15).pack(side=tk.LEFT, padx=2) # Corrected
+        ttk.Button(btn_frame, text="💾 Save Current", command=save_template, width=15).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="📥 Load", command=load_template, width=15).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text="🗑️ Delete", command=delete_template, width=15).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text="Close", command=dialog.destroy, width=15).pack(side=tk.RIGHT, padx=2)
 
     def _clear_signature(self) -> None:
@@ -831,6 +841,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
         ):
             self.editor.delete("1.0", tk.END)
             self.images_data = []
+            self.draggable_images = []
             self._update_preview()
 
     def _schedule_preview_update(self) -> None:
@@ -840,101 +851,283 @@ class ImprovedSignatureEditor(tk.Toplevel):
         self.update_timer = self.after(self.PREVIEW_UPDATE_DELAY, self._update_preview)
 
     def _update_preview(self) -> None:
-        """Update the live preview"""
-        self.preview.config(state='normal')
-        try:
-            self.preview.delete("1.0", tk.END)
-
-            # Clear old image references
-            self.preview_images = []
-
-            current_pos = "1.0"
-            while True:
-                # Find the next newline
-                next_pos = self.editor.search("\n", current_pos, tk.END)
-
-                if not next_pos:
-                    # Last segment (no more newlines)
-                    # Check if current_pos is valid before getting
-                    if self.editor.compare(current_pos, "<", tk.END):
-                        line_content = self.editor.get(current_pos, tk.END)
-                        self._render_preview_segment(line_content, current_pos, tk.END)
-                    break
-                else:
-                    # We have a line/segment ending in a newline
-                    line_content = self.editor.get(current_pos, next_pos)
-                    self._render_preview_segment(line_content, current_pos, next_pos)
-                    self.preview.insert(tk.END, "\n") # Add the newline
-
-                # Move to the start of the next line
-                current_pos = f"{next_pos}+1c"
-
-        finally:
-            self.preview.config(state='disabled')
-            # Reset the modified flag to prevent event spam
-            try:
-                self.editor.edit_modified(False)
-            except tk.TclError:
-                # This can fail if the widget is destroyed, ignore it
-                pass
-
-    def _render_preview_segment(self, segment_text: str, start_index: str, end_index: str) -> None:
-        """Renders a single segment (text or image) into the preview"""
-
-        segment_text_stripped = segment_text.strip()
-        # Check if this line is an image placeholder
-        image_match = re.match(r'\[Image #(\d+):', segment_text_stripped)
-
-        if image_match:
-            try:
+        """Update the live preview with draggable images"""
+        # Clear canvas
+        self.preview_canvas.delete("all")
+        self.draggable_images = []
+        self.preview_images = []
+        
+        y_offset = 10
+        x_offset = 10
+        
+        # Get all content
+        content = self.editor.get("1.0", tk.END)
+        lines = content.split("\n")
+        
+        for line_num, line in enumerate(lines):
+            line_start_index = f"{line_num + 1}.0"
+            line_end_index = f"{line_num + 1}.end"
+            
+            # Check for image placeholder
+            image_match = re.match(r'\[Image #(\d+):', line.strip())
+            if image_match:
                 img_index = int(image_match.group(1)) - 1
                 if 0 <= img_index < len(self.images_data):
-                    img_info = self.images_data[img_index]
+                    img_data = self.images_data[img_index]
+                    
+                    # Create PhotoImage from base64
+                    photo_image = tk.PhotoImage(data=img_data["data"])
+                    self.preview_images.append(photo_image)
+                    
+                    # Create image on canvas
+                    canvas_id = self.preview_canvas.create_image(
+                        x_offset, y_offset, 
+                        anchor=tk.NW, 
+                        image=photo_image
+                    )
+                    
+                    # Create DraggableImage object
+                    draggable_img = DraggableImage(
+                        canvas_id=canvas_id,
+                        text_index=line_start_index,
+                        image_data=img_data["data"],
+                        width=img_data["width"],
+                        height=img_data["height"],
+                        original_width=img_data["width"],
+                        original_height=img_data["height"],
+                        photo_image=photo_image
+                    )
+                    self.draggable_images.append(draggable_img)
+                    
+                    # Draw resize handles (corners)
+                    self._draw_resize_handles(canvas_id, x_offset, y_offset, img_data["width"], img_data["height"])
+                    
+                    y_offset += img_data["height"] + 10
+                continue
+            
+            # Handle text lines
+            if line.strip():
+                # Get all dump data for styling
+                all_data = self.editor.dump(line_start_index, line_end_index, "all")
+                
+                # Simple text rendering for now
+                text_id = self.preview_canvas.create_text(
+                    x_offset, y_offset,
+                    anchor=tk.NW,
+                    text=line,
+                    font=("Arial", 12),
+                    width=500
+                )
+                
+                # Get text bounding box for next line position
+                bbox = self.preview_canvas.bbox(text_id)
+                if bbox:
+                    y_offset = bbox[3] + 5
+            else:
+                y_offset += 10  # Empty line spacing
+        
+        # Configure scroll region
+        self.preview_canvas.configure(scrollregion=self.preview_canvas.bbox("all"))
+        
+        # Reset modified flag
+        try:
+            self.editor.edit_modified(False)
+        except tk.TclError:
+            pass
 
-                    # Create PhotoImage from base64 data
-                    photo_image = tk.PhotoImage(data=img_info["data"])
-                    self.preview_images.append(photo_image) # Store reference
+    def _draw_resize_handles(self, image_id, x, y, width, height):
+        """Draw resize handles at corners of image"""
+        handle_size = 8
+        
+        # Corner positions
+        corners = [
+            (x, y, "nw"),  # Top-left
+            (x + width, y, "ne"),  # Top-right
+            (x, y + height, "sw"),  # Bottom-left
+            (x + width, y + height, "se"),  # Bottom-right
+        ]
+        
+        for cx, cy, corner_type in corners:
+            handle = self.preview_canvas.create_rectangle(
+                cx - handle_size//2, cy - handle_size//2,
+                cx + handle_size//2, cy + handle_size//2,
+                fill="blue", outline="darkblue", width=2,
+                tags=(f"handle_{image_id}", corner_type)
+            )
 
-                    # Insert image into preview
-                    self.preview.image_create(tk.END, image=photo_image)
+    def _on_canvas_click(self, event):
+        """Handle mouse click on canvas"""
+        # Check if clicked on an image
+        items = self.preview_canvas.find_overlapping(event.x, event.y, event.x, event.y)
+        
+        for item_id in items:
+            # Check if it's an image
+            for draggable_img in self.draggable_images:
+                if draggable_img.canvas_id == item_id:
+                    self.selected_image = draggable_img
+                    self.drag_start_x = event.x
+                    self.drag_start_y = event.y
+                    self.resize_mode = None
+                    return
+                
+            # Check if it's a resize handle
+            tags = self.preview_canvas.gettags(item_id)
+            for tag in tags:
+                if tag in ["nw", "ne", "sw", "se"]:
+                    # Find which image this handle belongs to
+                    for draggable_img in self.draggable_images:
+                        if f"handle_{draggable_img.canvas_id}" in tags:
+                            self.selected_image = draggable_img
+                            self.drag_start_x = event.x
+                            self.drag_start_y = event.y
+                            self.resize_mode = tag
+                            return
+        
+        # Clicked on empty space
+        self.selected_image = None
+        self.resize_mode = None
 
-                else:
-                    # Broken reference, just insert the text
-                    self.preview.insert(tk.END, segment_text)
-            except Exception as e:
-                self.log(f"ERROR: Failed to render preview image: {e}")
-                self.preview.insert(tk.END, segment_text)
+    def _on_canvas_drag(self, event):
+        """Handle mouse drag on canvas"""
+        if not self.selected_image:
+            return
+        
+        dx = event.x - self.drag_start_x
+        dy = event.y - self.drag_start_y
+        
+        if self.resize_mode:
+            # Resize image
+            self._resize_image(dx, dy)
         else:
-            # It's a text segment. Use `dump` to copy text and tags.
-            all_data = self.editor.dump(start_index, end_index, "all")
+            # Move image
+            self.preview_canvas.move(self.selected_image.canvas_id, dx, dy)
+            # Move handles
+            for item in self.preview_canvas.find_withtag(f"handle_{self.selected_image.canvas_id}"):
+                self.preview_canvas.move(item, dx, dy)
+        
+        self.drag_start_x = event.x
+        self.drag_start_y = event.y
 
-            if not all_data:
-                # Fallback: dump returned nothing, just insert the raw segment text
-                # This can happen for empty lines or segments
-                if segment_text:
-                     self.preview.insert(tk.END, segment_text)
-                return
+    def _on_canvas_release(self, event):
+        """Handle mouse release on canvas"""
+        if self.selected_image and self.resize_mode:
+            # Update the stored image dimensions
+            coords = self.preview_canvas.coords(self.selected_image.canvas_id)
+            bbox = self.preview_canvas.bbox(self.selected_image.canvas_id)
+            if bbox:
+                new_width = bbox[2] - bbox[0]
+                new_height = bbox[3] - bbox[1]
+                
+                # Update the image data
+                for img_data in self.images_data:
+                    if img_data["data"] == self.selected_image.image_data:
+                        img_data["width"] = int(new_width)
+                        img_data["height"] = int(new_height)
+                        break
+                
+                # Update draggable image dimensions
+                self.selected_image.width = int(new_width)
+                self.selected_image.height = int(new_height)
+        
+        self.resize_mode = None
 
-            try:
-                for key, value, index in all_data:
-                    if key == "text":
-                        tags = self.editor.tag_names(index)
+    def _on_canvas_motion(self, event):
+        """Handle mouse motion to change cursor"""
+        items = self.preview_canvas.find_overlapping(event.x, event.y, event.x, event.y)
+        
+        cursor = ""
+        for item_id in items:
+            tags = self.preview_canvas.gettags(item_id)
+            if "nw" in tags or "se" in tags:
+                cursor = "size_nw_se"
+                break
+            elif "ne" in tags or "sw" in tags:
+                cursor = "size_ne_sw"
+                break
+            elif any(tag.startswith("handle_") for tag in tags):
+                cursor = "hand2"
+                break
+        
+        if cursor:
+            self.preview_canvas.configure(cursor=cursor)
+        else:
+            # Check if over an image
+            for draggable_img in self.draggable_images:
+                if draggable_img.canvas_id in items:
+                    self.preview_canvas.configure(cursor="fleur")
+                    return
+            self.preview_canvas.configure(cursor="")
 
-                        # --- FIX for TypeError ---
-                        # Check if tags is None, default to empty tuple
-                        if tags is None:
-                            tags = ()
-                        # -----------------------
-
-                        # Filter out 'sel' tag which is just for selection
-                        tags_tuple = tuple(t for t in tags if t != 'sel')
-                        self.preview.insert(tk.END, value, tags_tuple)
-            except Exception as e:
-                # Catch any other weirdness with dump
-                self.log(f"ERROR: Failed to dump/render text segment: {e}")
-                # Fallback to inserting the raw text
-                if segment_text:
-                    self.preview.insert(tk.END, segment_text)
+    def _resize_image(self, dx, dy):
+        """Resize the selected image based on resize mode"""
+        if not self.selected_image or not self.resize_mode:
+            return
+        
+        # Get current image position and size
+        coords = self.preview_canvas.coords(self.selected_image.canvas_id)
+        x, y = coords[0], coords[1]
+        
+        current_width = self.selected_image.width
+        current_height = self.selected_image.height
+        
+        # Calculate new dimensions based on corner being dragged
+        if self.resize_mode == "se":  # Bottom-right corner
+            new_width = max(50, current_width + dx)
+            new_height = max(50, current_height + dy)
+        elif self.resize_mode == "sw":  # Bottom-left corner
+            new_width = max(50, current_width - dx)
+            new_height = max(50, current_height + dy)
+            if new_width != current_width:
+                x += dx
+        elif self.resize_mode == "ne":  # Top-right corner
+            new_width = max(50, current_width + dx)
+            new_height = max(50, current_height - dy)
+            if new_height != current_height:
+                y += dy
+        elif self.resize_mode == "nw":  # Top-left corner
+            new_width = max(50, current_width - dx)
+            new_height = max(50, current_height - dy)
+            if new_width != current_width:
+                x += dx
+            if new_height != current_height:
+                y += dy
+        else:
+            return
+        
+        # Maintain aspect ratio
+        aspect_ratio = self.selected_image.original_height / self.selected_image.original_width
+        new_height = int(new_width * aspect_ratio)
+        
+        # Resize the image
+        try:
+            # Decode base64 and create PIL image
+            import io
+            img_bytes = base64.b64decode(self.selected_image.image_data)
+            pil_image = Image.open(io.BytesIO(img_bytes))
+            
+            # Resize
+            resized_image = pil_image.resize((int(new_width), int(new_height)), Image.Resampling.LANCZOS)
+            
+            # Convert back to PhotoImage
+            photo_image = ImageTk.PhotoImage(resized_image)
+            self.preview_images.append(photo_image)  # Keep reference
+            
+            # Update canvas image
+            self.preview_canvas.itemconfig(self.selected_image.canvas_id, image=photo_image)
+            self.preview_canvas.coords(self.selected_image.canvas_id, x, y)
+            
+            # Update stored dimensions
+            self.selected_image.width = int(new_width)
+            self.selected_image.height = int(new_height)
+            self.selected_image.photo_image = photo_image
+            
+            # Redraw handles
+            for item in self.preview_canvas.find_withtag(f"handle_{self.selected_image.canvas_id}"):
+                self.preview_canvas.delete(item)
+            self._draw_resize_handles(self.selected_image.canvas_id, x, y, new_width, new_height)
+            
+        except Exception as e:
+            self.log(f"ERROR: Failed to resize image: {e}")
 
     def _generate_html(self) -> str:
         """Generate HTML from editor content with proper formatting"""
@@ -968,7 +1161,6 @@ class ImprovedSignatureEditor(tk.Toplevel):
                 html_parts.append('<p style="margin: 3px 0;">&nbsp;</p>')
                 continue
 
-            # --- Reworked HTML Generation Logic ---
             # Get all dump data for the current line
             all_data = self.editor.dump(line_start_index, line_end_index, "all")
 
@@ -983,7 +1175,7 @@ class ImprovedSignatureEditor(tk.Toplevel):
             elif "right" in para_tags:
                 para_style_dict["text-align"] = "right"
             else:
-                para_style_dict["text-align"] = "left" # default
+                para_style_dict["text-align"] = "left"
 
             line_html_parts = []
 
@@ -1000,9 +1192,9 @@ class ImprovedSignatureEditor(tk.Toplevel):
                         if tag.startswith("font_"):
                             parts = tag.split("_")
                             if len(parts) >= 3:
-                                font_family_name = " ".join(parts[1:-1]) # Handle multi-word font names
+                                font_family_name = " ".join(parts[1:-1])
                                 font_size = parts[-1]
-                                style_dict["font-family"] = f"'{font_family_name}'" # Quote font names
+                                style_dict["font-family"] = f"'{font_family_name}'"
                                 style_dict["font-size"] = f"{font_size}px"
                         elif tag.startswith("color_"):
                             style_dict["color"] = "#" + tag.replace("color_", "")
@@ -1026,8 +1218,6 @@ class ImprovedSignatureEditor(tk.Toplevel):
             # Join all spans into a single paragraph
             para_style_str = "; ".join(f"{k}: {v}" for k, v in para_style_dict.items())
             html_parts.append(f'<p style="margin: 3px 0; {para_style_str}">{"".join(line_html_parts)}</p>')
-
-            # --- End Reworked Logic ---
 
         html_parts.append('</div>')
         return "\n".join(html_parts)
@@ -1236,10 +1426,6 @@ class ImprovedSignatureEditor(tk.Toplevel):
                 # This requires parsing the HTML back into the editor's format (complex)
                 # For now, just log that it exists
                 self.log("INFO: Existing signature found in database.")
-                # Simple load (doesn't preserve formatting perfectly)
-                # self.editor.delete("1.0", tk.END)
-                # self.editor.insert("1.0", "Existing signature loaded (HTML view in Settings)")
-                # self._schedule_preview_update()
 
         except Exception as e:
             self.log(f"INFO: No existing signature found or error loading: {e}")

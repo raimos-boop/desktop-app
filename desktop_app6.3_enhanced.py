@@ -40,7 +40,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
 
 # Import improved signature editor
-from improved_signature_editor import ImprovedSignatureEditor
+from improved_signature_editor_v2 import ImprovedSignatureEditor
 
 
 
@@ -190,7 +190,7 @@ def extract_supplier_name(pdf_path, known_vendors, log_callback=None):
 
     except Exception as e:
         if log_callback:
-            log_callback(f"ERROR: Could not process {pdf_path}: {str(e)}")
+            log_callback(f"✗ ERROR: Could not process {pdf_path}: {str(e)}")
         return None
 
 
@@ -218,7 +218,7 @@ def load_email_mapping(db_manager=None, log_callback=None):
 
         if not rows:
             if log_callback:
-                log_callback(f"WARNING: No vendors found in database")
+                log_callback(f"⚠ WARNING: No vendors found in database")
             return email_map
 
         for row in rows:
@@ -246,13 +246,13 @@ def load_email_mapping(db_manager=None, log_callback=None):
                 )
 
         if log_callback:
-            log_callback(f"INFO: Loaded {len(email_map)} vendor email mappings")
+            log_callback(f"ℹ️ INFO: Loaded {len(email_map)} vendor email mappings")
 
         return email_map
 
     except Exception as e:
         if log_callback:
-            log_callback(f"ERROR: Could not load email map: {e}")
+            log_callback(f"✗ ERROR: Could not load email map: {e}")
         return CaseInsensitiveDict()
 
 
@@ -749,6 +749,19 @@ class DatabaseManager:
             else:
                 print(" price_per_unit column already exists")
 
+            # Check for closed_by_user column
+            if "closed_by_user" not in order_columns:
+                try:
+                    cursor.execute(
+                        "ALTER TABLE open_orders ADD COLUMN closed_by_user INTEGER DEFAULT 0"
+                    )
+                    conn.commit()
+                    print("✓ Added closed_by_user column to open_orders table")
+                except Exception as col_error:
+                    print(f"✗ Could not add closed_by_user: {col_error}")
+            else:
+                print("✓ closed_by_user column already exists")
+
             # NEW: Check requisitions table columns for lead_time_days
             cursor.execute("PRAGMA table_info(requisitions)")
             req_columns = [row[1] for row in cursor.fetchall()]
@@ -899,20 +912,59 @@ class LocalDataManager:
         """
         return self.db.execute_query(query, fetchall=True)
 
-    def close_order_lines(self, order_lines):
-        """Marks a list of order lines as 'Closed'."""
+    def close_order_lines(self, order_lines, closed_by_user=True):
+        """
+        Marks a list of order lines as 'Closed'.
+        
+        Args:
+            order_lines: List of tuples (po_number, item_number)
+            closed_by_user: If True, marks as manually closed (prevents reopening)
+                           If False, marks as auto-closed (can be reopened on upload)
+        
+        Returns:
+            Number of rows affected
+        """
         if not order_lines:
             return 0
 
         # order_lines is a list of tuples, where each tuple is (po_number, item_number)
-        query = "UPDATE open_orders SET status = 'Closed' WHERE po = ? AND item = ?"
+        query = """
+            UPDATE open_orders 
+            SET status = 'Closed', closed_by_user = ? 
+            WHERE po = ? AND item = ?
+        """
 
         with self.db.get_connection() as conn:
             cursor = conn.cursor()
-            # executemany is efficient for running the same query with multiple parameter sets
+            # Add the closed_by_user flag to each tuple
+            params = [(1 if closed_by_user else 0, po, item) for po, item in order_lines]
+            cursor.executemany(query, params)
+            conn.commit()
+            return cursor.rowcount
+
+    def reopen_order_lines(self, order_lines):
+        """
+        Reopens order lines that were manually closed.
+        
+        Args:
+            order_lines: List of tuples (po_number, item_number)
+        
+        Returns:
+            Number of rows affected
+        """
+        if not order_lines:
+            return 0
+
+        query = """
+            UPDATE open_orders 
+            SET status = 'Open', closed_by_user = 0 
+            WHERE po = ? AND item = ?
+        """
+
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
             cursor.executemany(query, order_lines)
             conn.commit()
-            # Return the number of rows affected
             return cursor.rowcount
 
     def get_po_details(self, po_number):
@@ -1133,10 +1185,10 @@ class LocalDataManager:
                     update_query = "UPDATE open_orders SET status = 'Closed' WHERE po = ? AND item = ?"
                     cursor.executemany(update_query, lines_to_close_list)
                     closed_count = cursor.rowcount
-                    print(f"INFO: Marked {closed_count} order lines as 'Closed'.")
+                    print(f"✓ Auto-closed {closed_count} order lines (missing from upload)")
             else:
                 # Level 3: If not auto-closing (8 spaces)
-                print(f"INFO: Auto-close disabled - existing lines remain open.")
+                print(f"ℹ️ INFO: Auto-close disabled - existing lines remain open.")
 
             conn.commit()
 
@@ -1146,7 +1198,7 @@ class LocalDataManager:
         )
 
         print(
-            f"INFO: Price update complete - Updated: {updated_prices} materials, Created: {created_materials} materials"
+            f"ℹ️ INFO: Price update complete - Updated: {updated_prices} materials, Created: {created_materials} materials"
         )
 
         # Return the counts including price updates
@@ -1501,7 +1553,7 @@ class LocalDataManager:
                     y -= logo_height + 0.1 * inch
 
                 except Exception as e:
-                    print(f"WARNING: Could not load logo: {e}")
+                    print(f"⚠ WARNING: Could not load logo: {e}")
                     # Continue without logo if there's an error
 
             # Company name and address (below logo if present)
@@ -2015,8 +2067,7 @@ class LocalDataManager:
                         os.remove(temp_excel)
                         files_created_count += 1
 
-            messagebox.showinfo(
-                "Success",
+            messagebox.showinfo("✅ Success",
                 f"Created ZIP file with {files_created_count} reschedule files\n{zip_path}",
             )
         else:
@@ -2036,8 +2087,7 @@ class LocalDataManager:
                     files_created_count += 1
 
             if files_created_count > 0:
-                messagebox.showinfo(
-                    "Success", f"Created reschedule file\n{file_path}"
+                messagebox.showinfo("✅ Success", f"Created reschedule file\n{file_path}"
                 )
 
         return files_created_count
@@ -2461,7 +2511,7 @@ class LocalDataManager:
             return True
 
         except Exception as e:
-            print(f"ERROR: Failed to create reschedule PDF: {e}")
+            print(f"✗ ERROR: Failed to create reschedule PDF: {e}")
             import traceback
 
             traceback.print_exc()
@@ -2965,12 +3015,12 @@ class ForecastDataManager:
                     update_query = "UPDATE requisitions SET status = 'Closed' WHERE req_number = ? AND item = ?"
                     cursor.executemany(update_query, lines_to_close_list)
                     closed_count = cursor.rowcount
-                    print(f"INFO: Marked {closed_count} requisition lines as 'Closed'.")
+                    print(f"ℹ️ INFO: Marked {closed_count} requisition lines as 'Closed'.")
 
                 conn.commit()
 
             print(
-                f"INFO: Materials Master Data - Created: {materials_created}, Updated: {materials_updated}"
+                f"ℹ️ INFO: Materials Master Data - Created: {materials_created}, Updated: {materials_updated}"
             )
             return (
                 len(requisitions_to_insert),
@@ -3299,7 +3349,7 @@ class ForecastDataManager:
                         "material master" if item.get("net_price") else "requisition"
                     )
                     print(
-                        f"INFO: PO {po_number} Item {idx} - Using price from {price_source}: {unit_price}/{price_per} {currency}"
+                        f"ℹ️ INFO: PO {po_number} Item {idx} - Using price from {price_source}: {unit_price}/{price_per} {currency}"
                     )
 
                 created_pos.append(po_number)
@@ -4636,15 +4686,15 @@ Features:
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"SUCCESS: {message}")
-            messagebox.showinfo("Success", message, parent=self)
+            self.log(f"✓ SUCCESS: {message}")
+            messagebox.showinfo("✅ Success", message, parent=self)
         except Exception as e:
             error_msg = f"Failed to upload forecast: {str(e)}"
             self.status_text.insert(
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - ERROR: {error_msg}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"ERROR: {error_msg}")
+            self.log(f"✗ ERROR: {error_msg}")
             messagebox.showerror("Upload Error", error_msg, parent=self)
 
     def upload_requisitions(self):
@@ -4696,7 +4746,7 @@ Features:
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"SUCCESS: Requisitions uploaded")
+            self.log(f"✓ SUCCESS: Requisitions uploaded")
             messagebox.showinfo("Upload Complete", message, parent=self)
 
         except Exception as e:
@@ -4705,7 +4755,7 @@ Features:
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - ERROR: {error_msg}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"ERROR: {error_msg}")
+            self.log(f"✗ ERROR: {error_msg}")
             messagebox.showerror("Upload Error", error_msg, parent=self)
 
     def clear_requisitions(self):
@@ -4724,8 +4774,8 @@ Features:
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"SUCCESS: {message}")
-            messagebox.showinfo("Success", message, parent=self)
+            self.log(f"✓ SUCCESS: {message}")
+            messagebox.showinfo("✅ Success", message, parent=self)
 
             # Refresh the requisitions view if it's loaded
             if hasattr(self, "req_tree"):
@@ -4736,8 +4786,8 @@ Features:
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - ERROR: {error_msg}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"ERROR: {error_msg}")
-            messagebox.showerror("Error", error_msg, parent=self)
+            self.log(f"✗ ERROR: {error_msg}")
+            messagebox.showerror("❌ Error", error_msg, parent=self)
 
     def download_template(self):
         """Download forecast template"""
@@ -4767,16 +4817,16 @@ Features:
                     tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n"
                 )
                 self.status_text.see(tk.END)
-                self.log(f"SUCCESS: {message}")
-                messagebox.showinfo("Success", message, parent=self)
+                self.log(f"✓ SUCCESS: {message}")
+                messagebox.showinfo("✅ Success", message, parent=self)
         except Exception as e:
             error_msg = f"Failed to generate template: {str(e)}"
             self.status_text.insert(
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - ERROR: {error_msg}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"ERROR: {error_msg}")
-            messagebox.showerror("Error", error_msg, parent=self)
+            self.log(f"✗ ERROR: {error_msg}")
+            messagebox.showerror("❌ Error", error_msg, parent=self)
 
     def link_requisitions(self):
         """Link requisitions to forecast data"""
@@ -4790,16 +4840,16 @@ Features:
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - {message}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"SUCCESS: {message}")
-            messagebox.showinfo("Success", message, parent=self)
+            self.log(f"✓ SUCCESS: {message}")
+            messagebox.showinfo("✅ Success", message, parent=self)
         except Exception as e:
             error_msg = f"Failed to link requisitions: {str(e)}"
             self.status_text.insert(
                 tk.END, f"{datetime.now().strftime('%H:%M:%S')} - ERROR: {error_msg}\n"
             )
             self.status_text.see(tk.END)
-            self.log(f"ERROR: {error_msg}")
-            messagebox.showerror("Error", error_msg, parent=self)
+            self.log(f"✗ ERROR: {error_msg}")
+            messagebox.showerror("❌ Error", error_msg, parent=self)
 
     def load_forecast_summary(self):
         """Load and display forecast summary"""
@@ -4834,11 +4884,10 @@ Features:
             summary = f"Total: {len(forecasts)} forecast items | {total_value:,.2f} {currency}"
             self.forecast_summary_label.config(text=summary)
 
-            self.log(f"INFO: Loaded {len(forecasts)} forecast items")
+            self.log(f"ℹ️ INFO: Loaded {len(forecasts)} forecast items")
         except Exception as e:
-            self.log(f"ERROR: Failed to load forecast: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to load forecast:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to load forecast: {e}")
+            messagebox.showerror("❌ Error", f"Failed to load forecast:\n{str(e)}", parent=self
             )
 
     def load_requisitions(self):
@@ -4875,11 +4924,10 @@ Features:
             summary = f"Total: {len(requisitions)} requisition lines | {total_value:,.2f} {currency}"
             self.req_summary_label.config(text=summary)
 
-            self.log(f"INFO: Loaded {len(requisitions)} requisition items")
+            self.log(f"ℹ️ INFO: Loaded {len(requisitions)} requisition items")
         except Exception as e:
-            self.log(f"ERROR: Failed to load requisitions: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to load requisitions:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to load requisitions: {e}")
+            messagebox.showerror("❌ Error", f"Failed to load requisitions:\n{str(e)}", parent=self
             )
 
     def convert_selected_to_po(self):
@@ -4895,8 +4943,7 @@ Features:
             set([self.req_tree.item(item, "values")[0] for item in selected])
         )
 
-        if not messagebox.askyesno(
-            "Confirm",
+        if not messagebox.askyesno("❓ Confirm",
             f"Mark {len(req_numbers)} requisition(s) as converted to PO?",
             parent=self,
         ):
@@ -4904,14 +4951,13 @@ Features:
 
         try:
             count = self.fm.convert_requisition_to_po(req_numbers)
-            self.log(f"SUCCESS: Converted {count} requisitions")
-            messagebox.showinfo(
-                "Success", f"Converted {count} requisitions to PO status", parent=self
+            self.log(f"✓ SUCCESS: Converted {count} requisitions")
+            messagebox.showinfo("✅ Success", f"Converted {count} requisitions to PO status", parent=self
             )
             self.load_requisitions()
         except Exception as e:
-            self.log(f"ERROR: Failed to convert requisitions: {e}")
-            messagebox.showerror("Error", f"Failed to convert:\n{str(e)}", parent=self)
+            self.log(f"✗ ERROR: Failed to convert requisitions: {e}")
+            messagebox.showerror("❌ Error", f"Failed to convert:\n{str(e)}", parent=self)
 
     def export_forecast(self):
         """Export forecast data to Excel"""
@@ -4943,11 +4989,11 @@ Features:
                 with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
                     df.to_excel(writer, sheet_name="Forecast", index=False)
 
-                self.log(f"SUCCESS: Exported forecast to {save_path}")
-                messagebox.showinfo("Success", f"Exported to {save_path}", parent=self)
+                self.log(f"✓ SUCCESS: Exported forecast to {save_path}")
+                messagebox.showinfo("✅ Success", f"Exported to {save_path}", parent=self)
         except Exception as e:
-            self.log(f"ERROR: Failed to export: {e}")
-            messagebox.showerror("Error", f"Failed to export:\n{str(e)}", parent=self)
+            self.log(f"✗ ERROR: Failed to export: {e}")
+            messagebox.showerror("❌ Error", f"Failed to export:\n{str(e)}", parent=self)
 
     def export_requisitions(self):
         """Export requisitions to Excel"""
@@ -4976,11 +5022,11 @@ Features:
                 with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
                     df.to_excel(writer, sheet_name="Requisitions", index=False)
 
-                self.log(f"SUCCESS: Exported requisitions to {save_path}")
-                messagebox.showinfo("Success", f"Exported to {save_path}", parent=self)
+                self.log(f"✓ SUCCESS: Exported requisitions to {save_path}")
+                messagebox.showinfo("✅ Success", f"Exported to {save_path}", parent=self)
         except Exception as e:
-            self.log(f"ERROR: Failed to export: {e}")
-            messagebox.showerror("Error", f"Failed to export:\n{str(e)}", parent=self)
+            self.log(f"✗ ERROR: Failed to export: {e}")
+            messagebox.showerror("❌ Error", f"Failed to export:\n{str(e)}", parent=self)
 
     def generate_accuracy_report(self):
         """Generate forecast accuracy analysis report"""
@@ -5011,7 +5057,7 @@ Report will help identify:
 """
 
         self.analysis_text.insert(tk.END, report)
-        self.log("INFO: Accuracy report generated")
+        self.log("ℹ️ INFO: Accuracy report generated")
 
     def preview_outbound_forecast(self):
         """Generate and display forecast preview"""
@@ -5096,12 +5142,12 @@ Report will help identify:
                 preview_text += f"\nVENDOR TOTAL: {vendor_total:,} units\n\n"
 
             self.outbound_preview_text.insert(tk.END, preview_text)
-            self.log("INFO: Outbound forecast preview generated")
+            self.log("ℹ️ INFO: Outbound forecast preview generated")
 
         except Exception as e:
             error_msg = f"Failed to generate forecast preview: {str(e)}"
             self.outbound_preview_text.insert(tk.END, error_msg)
-            self.log(f"ERROR: {error_msg}")
+            self.log(f"✗ ERROR: {error_msg}")
 
     def export_outbound_forecast_excel(self):
         """Export outbound forecast to Excel"""
@@ -5158,9 +5204,8 @@ Report will help identify:
                     with open(save_path, "wb") as f:
                         f.write(excel_buffer.read())
 
-                    self.log(f"SUCCESS: Exported outbound forecast to {save_path}")
-                    messagebox.showinfo(
-                        "Success", f"Forecast exported to:\n{save_path}", parent=self
+                    self.log(f"✓ SUCCESS: Exported outbound forecast to {save_path}")
+                    messagebox.showinfo("✅ Success", f"Forecast exported to:\n{save_path}", parent=self
                     )
             else:
                 # Multiple vendors - create zip file
@@ -5186,18 +5231,17 @@ Report will help identify:
                                 )
 
                     self.log(
-                        f"SUCCESS: Exported {len(selected_vendors)} forecasts to {save_path}"
+                        f"✓ SUCCESS: Exported {len(selected_vendors)} forecasts to {save_path}"
                     )
-                    messagebox.showinfo(
-                        "Success",
+                    messagebox.showinfo("✅ Success",
                         f"Exported {len(selected_vendors)} forecasts to:\n{save_path}",
                         parent=self,
                     )
 
         except Exception as e:
             error_msg = f"Failed to export forecast: {str(e)}"
-            self.log(f"ERROR: {error_msg}")
-            messagebox.showerror("Error", error_msg, parent=self)
+            self.log(f"✗ ERROR: {error_msg}")
+            messagebox.showerror("❌ Error", error_msg, parent=self)
 
     def export_outbound_forecast_pdf(self):
         """Export outbound forecast to PDF"""
@@ -5254,9 +5298,8 @@ Report will help identify:
                     with open(save_path, "wb") as f:
                         f.write(pdf_buffer.read())
 
-                    self.log(f"SUCCESS: Exported outbound forecast PDF to {save_path}")
-                    messagebox.showinfo(
-                        "Success", f"Forecast exported to:\n{save_path}", parent=self
+                    self.log(f"✓ SUCCESS: Exported outbound forecast PDF to {save_path}")
+                    messagebox.showinfo("✅ Success", f"Forecast exported to:\n{save_path}", parent=self
                     )
             else:
                 # Multiple vendors - create zip file
@@ -5282,18 +5325,17 @@ Report will help identify:
                                 )
 
                     self.log(
-                        f"SUCCESS: Exported {len(selected_vendors)} forecasts to {save_path}"
+                        f"✓ SUCCESS: Exported {len(selected_vendors)} forecasts to {save_path}"
                     )
-                    messagebox.showinfo(
-                        "Success",
+                    messagebox.showinfo("✅ Success",
                         f"Exported {len(selected_vendors)} forecasts to:\n{save_path}",
                         parent=self,
                     )
 
         except Exception as e:
             error_msg = f"Failed to export forecast PDF: {str(e)}"
-            self.log(f"ERROR: {error_msg}")
-            messagebox.showerror("Error", error_msg, parent=self)
+            self.log(f"✗ ERROR: {error_msg}")
+            messagebox.showerror("❌ Error", error_msg, parent=self)
 
     def email_outbound_forecasts(self):
         """Generate and email outbound forecasts to vendors using templates"""
@@ -5352,8 +5394,7 @@ Report will help identify:
             send_method = "Outlook" if method == "yes" else "SMTP"
 
             if send_method == "Outlook" and not OUTLOOK_AVAILABLE:
-                messagebox.showerror(
-                    "Error",
+                messagebox.showerror("❌ Error",
                     "Outlook is not available. Please use SMTP method.",
                     parent=self,
                 )
@@ -5418,7 +5459,7 @@ Report will help identify:
 
                     if success:
                         sent_count += 1
-                        self.log(f"SUCCESS: Sent forecast to {vendor_name}")
+                        self.log(f"✓ SUCCESS: Sent forecast to {vendor_name}")
                     else:
                         failed_count += 1
                         failed_details.append(f"{vendor_name}: {message}")
@@ -5431,7 +5472,7 @@ Report will help identify:
                 except Exception as e:
                     failed_count += 1
                     failed_details.append(f"{vendor_name}: {str(e)}")
-                    self.log(f"ERROR: Failed to send forecast to {vendor_name}: {e}")
+                    self.log(f"✗ ERROR: Failed to send forecast to {vendor_name}: {e}")
 
             # Show summary
             summary = f"Sent {sent_count} forecast email(s), Failed {failed_count}"
@@ -5440,14 +5481,13 @@ Report will help identify:
 
             messagebox.showinfo("Email Results", summary, parent=self)
             self.log(
-                f"INFO: Forecast email batch complete - {sent_count} sent, {failed_count} failed"
+                f"ℹ️ INFO: Forecast email batch complete - {sent_count} sent, {failed_count} failed"
             )
 
         except Exception as e:
-            messagebox.showerror(
-                "Error", f"Failed to send forecasts:\n{str(e)}", parent=self
+            messagebox.showerror("❌ Error", f"Failed to send forecasts:\n{str(e)}", parent=self
             )
-            self.log(f"ERROR: Failed to send forecasts: {e}")
+            self.log(f"✗ ERROR: Failed to send forecasts: {e}")
 
     def email_single_vendor_forecast(self, vendor_name):
         """Email forecast to a single vendor"""
@@ -5482,8 +5522,7 @@ Report will help identify:
                 None,
             )
             if not vendor_data or not vendor_data.get("emails"):
-                messagebox.showerror(
-                    "Error", f"No email address found for {vendor_name}.", parent=self
+                messagebox.showerror("❌ Error", f"No email address found for {vendor_name}.", parent=self
                 )
                 return
 
@@ -5508,8 +5547,7 @@ Report will help identify:
             send_method = "Outlook" if method == "yes" else "SMTP"
 
             if send_method == "Outlook" and not OUTLOOK_AVAILABLE:
-                messagebox.showerror(
-                    "Error",
+                messagebox.showerror("❌ Error",
                     "Outlook is not available. Please use SMTP method.",
                     parent=self,
                 )
@@ -5552,12 +5590,11 @@ Report will help identify:
                 )
 
             if success:
-                messagebox.showinfo(
-                    "Success",
+                messagebox.showinfo("✅ Success",
                     f"Forecast sent successfully to {vendor_name}!",
                     parent=self,
                 )
-                self.log(f"SUCCESS: Sent forecast to {vendor_name}")
+                self.log(f"✓ SUCCESS: Sent forecast to {vendor_name}")
             else:
                 messagebox.showerror(
                     "Failed", f"Failed to send forecast: {message}", parent=self
@@ -5569,10 +5606,9 @@ Report will help identify:
             except Exception:  # TODO: Add proper error handling
                 pass  # TODO: Add proper error handling
         except Exception as e:
-            messagebox.showerror(
-                "Error", f"Failed to send forecast:\n{str(e)}", parent=self
+            messagebox.showerror("❌ Error", f"Failed to send forecast:\n{str(e)}", parent=self
             )
-            self.log(f"ERROR: Failed to send forecast: {e}")
+            self.log(f"✗ ERROR: Failed to send forecast: {e}")
 
 
 # ==============================================================================
@@ -5599,7 +5635,7 @@ class MRPEngine:
         Returns:
             run_id: MRP run identifier for tracking
         """
-        self.log("INFO: Starting MRP run...")
+        self.log("ℹ️ INFO: Starting MRP run...")
 
         # Create MRP run record
         run_params = {
@@ -5637,7 +5673,7 @@ class MRPEngine:
                 )
 
             self.log(
-                f"INFO: Planning {len(material_list)} materials over {horizon_weeks} weeks"
+                f"ℹ️ INFO: Planning {len(material_list)} materials over {horizon_weeks} weeks"
             )
 
             # Calculate planning periods
@@ -5663,7 +5699,7 @@ class MRPEngine:
                             requisitions_created += 1
 
                 except Exception as e:
-                    self.log(f"ERROR: MRP calculation failed for {material_code}: {e}")
+                    self.log(f"✗ ERROR: MRP calculation failed for {material_code}: {e}")
                     continue
 
             # Mark run as completed
@@ -5674,12 +5710,12 @@ class MRPEngine:
             )
 
             self.log(
-                f"SUCCESS: MRP run {run_id} completed. Created {requisitions_created} requisitions."
+                f"✓ SUCCESS: MRP run {run_id} completed. Created {requisitions_created} requisitions."
             )
             return run_id
 
         except Exception as e:
-            self.log(f"ERROR: MRP run failed: {e}")
+            self.log(f"✗ ERROR: MRP run failed: {e}")
             self.db.execute_query(
                 "UPDATE mrp_runs SET status = ? WHERE run_id = ?",
                 ("FAILED", run_id),
@@ -5900,7 +5936,7 @@ class MRPEngine:
         # Log for transparency
         if pr_qty > 0:
             self.log(
-                f"INFO: Material {material_code}, Period {period_date.isoformat()}: "
+                f"ℹ️ INFO: Material {material_code}, Period {period_date.isoformat()}: "
                 f"PO Receipts={po_qty}, Existing PR Receipts={pr_qty}, Total={total_receipts}"
             )
 
@@ -6015,7 +6051,7 @@ class MRPEngine:
         )
 
         self.log(
-            f"INFO: Created requisition {req_number} for {req_data['material_code']}"
+            f"ℹ️ INFO: Created requisition {req_number} for {req_data['material_code']}"
         )
 
     def _generate_req_number(self):
@@ -6750,7 +6786,7 @@ class MRPPlanningWindow(tk.Toplevel):
                 query, (datetime.now().isoformat(), *req_numbers), commit=True
             )
 
-            self.log(f"INFO: Approved {len(req_numbers)} requisitions")
+            self.log(f"ℹ️ INFO: Approved {len(req_numbers)} requisitions")
             self.load_requisitions()
 
     def reject_requisitions(self):
@@ -6774,7 +6810,7 @@ class MRPPlanningWindow(tk.Toplevel):
 
             self.dm.db.execute_query(query, tuple(req_numbers), commit=True)
 
-            self.log(f"INFO: Rejected {len(req_numbers)} requisitions")
+            self.log(f"ℹ️ INFO: Rejected {len(req_numbers)} requisitions")
             self.load_requisitions()
 
     def convert_to_po(self):
@@ -6791,8 +6827,7 @@ class MRPPlanningWindow(tk.Toplevel):
         for item in selected:
             values = self.req_tree.item(item, "values")
             if values[7] != "APPROVED":
-                messagebox.showerror(
-                    "Error",
+                messagebox.showerror("❌ Error",
                     "Only APPROVED requisitions can be converted to PO",
                     parent=self,
                 )
@@ -6808,9 +6843,8 @@ class MRPPlanningWindow(tk.Toplevel):
             # For now, just mark as converted
             self.fm.convert_requisition_to_po(req_numbers)
 
-            self.log(f"INFO: Converted {len(req_numbers)} requisitions to PO")
-            messagebox.showinfo(
-                "Success",
+            self.log(f"ℹ️ INFO: Converted {len(req_numbers)} requisitions to PO")
+            messagebox.showinfo("✅ Success",
                 f"Converted {len(req_numbers)} requisition(s) to PO",
                 parent=self,
             )
@@ -6893,7 +6927,7 @@ class MRPPlanningWindow(tk.Toplevel):
         """Save material master data with pricing and currency"""
         material_code = self.material_fields["material_code"].get().strip()
         if not material_code:
-            messagebox.showerror("Error", "Material code is required", parent=self)
+            messagebox.showerror("❌ Error", "Material code is required", parent=self)
             return
 
         # Check if material exists
@@ -6935,9 +6969,8 @@ class MRPPlanningWindow(tk.Toplevel):
                 commit=True,
             )
 
-            self.log(f"INFO: Updated material {material_code}")
-            messagebox.showinfo(
-                "Success", f"Material {material_code} updated", parent=self
+            self.log(f"ℹ️ INFO: Updated material {material_code}")
+            messagebox.showinfo("✅ Success", f"Material {material_code} updated", parent=self
             )
         else:
             # Insert
@@ -6969,9 +7002,8 @@ class MRPPlanningWindow(tk.Toplevel):
                 commit=True,
             )
 
-            self.log(f"INFO: Created material {material_code}")
-            messagebox.showinfo(
-                "Success", f"Material {material_code} created", parent=self
+            self.log(f"ℹ️ INFO: Created material {material_code}")
+            messagebox.showinfo("✅ Success", f"Material {material_code} created", parent=self
             )
 
         self.load_materials()
@@ -7004,16 +7036,14 @@ class MRPPlanningWindow(tk.Toplevel):
                 commit=True,
             )
 
-            self.log(f"INFO: Deleted material {material_code}")
+            self.log(f"ℹ️ INFO: Deleted material {material_code}")
             self.clear_material_form()
             self.load_materials()
-            messagebox.showinfo(
-                "Success", f"Material {material_code} deleted", parent=self
+            messagebox.showinfo("✅ Success", f"Material {material_code} deleted", parent=self
             )
 
         except Exception as e:
-            messagebox.showerror(
-                "Error", f"Cannot delete material:\n{str(e)}", parent=self
+            messagebox.showerror("❌ Error", f"Cannot delete material:\n{str(e)}", parent=self
             )
 
     def view_last_run(self):
@@ -7207,14 +7237,13 @@ Vendor: {req.get('vendor_name', 'Not assigned')}
             # Save
             wb.save(file_path)
 
-            self.log(f"SUCCESS: Exported MRP results to {file_path}")
-            messagebox.showinfo(
-                "Success", f"MRP results exported to:\n{file_path}", parent=self
+            self.log(f"✓ SUCCESS: Exported MRP results to {file_path}")
+            messagebox.showinfo("✅ Success", f"MRP results exported to:\n{file_path}", parent=self
             )
 
         except Exception as e:
-            self.log(f"ERROR: Failed to export MRP results: {e}")
-            messagebox.showerror("Error", f"Failed to export:\n{str(e)}", parent=self)
+            self.log(f"✗ ERROR: Failed to export MRP results: {e}")
+            messagebox.showerror("❌ Error", f"Failed to export:\n{str(e)}", parent=self)
 
 
 class OpenOrderBookWindow(tk.Toplevel):
@@ -7373,16 +7402,16 @@ class OpenOrderBookWindow(tk.Toplevel):
 
         ttk.Button(
             action_frame,
-            text="Mark Selected as Closed",
+            text="❌ Mark Selected as Closed",
             command=self.mark_selected_closed,
         ).pack(fill=tk.X, pady=2)
         ttk.Button(
-            action_frame, text="Clear All Filters", command=self.clear_filters
+            action_frame, text="🗑️ Clear All Filters", command=self.clear_filters
         ).pack(fill=tk.X, pady=2)
         ttk.Button(
-            action_frame, text="Export Filtered Data", command=self.export_filtered_data
+            action_frame, text="📊 Export Filtered Data", command=self.export_filtered_data
         ).pack(fill=tk.X, pady=2)
-        ttk.Button(action_frame, text="Refresh Data", command=self.refresh_data).pack(
+        ttk.Button(action_frame, text="🔄 Refresh Data", command=self.refresh_data).pack(
             fill=tk.X, pady=2
         )
 
@@ -7396,11 +7425,11 @@ class OpenOrderBookWindow(tk.Toplevel):
 
         ttk.Button(
             top_toolbar,
-            text=" Upload Order Book (Excel)",
+            text="📤 Upload Order Book (Excel)",
             command=self.upload_order_book,
         ).pack(side=tk.LEFT, padx=5)
 
-        ttk.Button(top_toolbar, text=" Refresh Data", command=self.refresh_data).pack(
+        ttk.Button(top_toolbar, text="🔄 Refresh Data", command=self.refresh_data).pack(
             side=tk.LEFT, padx=5
         )
 
@@ -7587,13 +7616,13 @@ class OpenOrderBookWindow(tk.Toplevel):
                     )
 
                 messagebox.showinfo("Upload Complete", message, parent=self)
-                self.log(f"SUCCESS: {message.replace(chr(10), ' ')}")
+                self.log(f"✓ SUCCESS: {message.replace(chr(10), ' ')}")
             else:
                 # Level 4: Handle old return format (12 spaces)
                 processed_count = result
                 message = f"Successfully uploaded {processed_count} order lines"
                 messagebox.showinfo("Upload Complete", message, parent=self)
-                self.log(f"SUCCESS: Uploaded {processed_count} order lines")
+                self.log(f"✓ SUCCESS: Uploaded {processed_count} order lines")
 
             # Level 3: Refresh the display (8 spaces)
             self.refresh_data()
@@ -7601,7 +7630,7 @@ class OpenOrderBookWindow(tk.Toplevel):
         except Exception as e:
             # Level 3: Error handling (8 spaces)
             error_msg = f"Failed to upload order book: {str(e)}"
-            self.log(f"ERROR: {error_msg}")
+            self.log(f"✗ ERROR: {error_msg}")
             messagebox.showerror("Upload Failed", error_msg, parent=self)
 
     def create_context_menu(self):
@@ -7647,7 +7676,7 @@ class OpenOrderBookWindow(tk.Toplevel):
             value = str(values[col_index])
             self.clipboard_clear()
             self.clipboard_append(value)
-            self.log(f"INFO: Copied '{value}' to clipboard")
+            self.log(f"ℹ️ INFO: Copied '{value}' to clipboard")
 
     def copy_selected_row(self):
         """Copy all values in the selected row as tab-separated"""
@@ -7661,7 +7690,7 @@ class OpenOrderBookWindow(tk.Toplevel):
 
         self.clipboard_clear()
         self.clipboard_append(row_text)
-        self.log(f"INFO: Copied row data to clipboard")
+        self.log(f"ℹ️ INFO: Copied row data to clipboard")
 
     def copy_column_value(self, column_name):
         """Copy a specific column value from selected row"""
@@ -7695,9 +7724,9 @@ class OpenOrderBookWindow(tk.Toplevel):
                 value = str(values[col_index])
                 self.clipboard_clear()
                 self.clipboard_append(value)
-                self.log(f"INFO: Copied {column_name} '{value}' to clipboard")
+                self.log(f"ℹ️ INFO: Copied {column_name} '{value}' to clipboard")
         except (ValueError, IndexError) as e:
-            self.log(f"ERROR: Could not copy {column_name}: {e}")
+            self.log(f"✗ ERROR: Could not copy {column_name}: {e}")
 
     def mark_selected_closed(self):
         """Marks the selected order lines in the treeview as closed."""
@@ -7720,28 +7749,34 @@ class OpenOrderBookWindow(tk.Toplevel):
                 lines_to_close.append((po_number, item_number))
 
         if not lines_to_close:
-            messagebox.showerror(
-                "Error",
+            messagebox.showerror("❌ Error",
                 "Could not identify the selected lines. Please try again.",
                 parent=self,
             )
             return
 
-        if messagebox.askyesno(
-            "Confirm",
-            f"Are you sure you want to close {len(lines_to_close)} order line(s)?\nThis action cannot be undone from the UI.",
+        if messagebox.askyesno("❓ Confirm",
+            f"⚠️ Manual Order Closure"
+            f"Are you sure you want to close {len(lines_to_close)} order line(s)?"
+
+            f"📌 Manually closed orders will NOT reopen during batch uploads"
+
+            f"⚙️ This ensures your manual closures are preserved.",
             parent=self,
         ):
             try:
-                closed_count = self.dm.close_order_lines(lines_to_close)
-                self.log(f"INFO: Marked {closed_count} order line(s) as closed.")
-                messagebox.showinfo(
-                    "Success", f"{closed_count} line(s) have been closed.", parent=self
+                closed_count = self.dm.close_order_lines(lines_to_close, closed_by_user=True)
+                self.log(f"✓ Marked {closed_count} order line(s) as manually closed.")
+                messagebox.showinfo("✅ Success", 
+                    f"✅ {closed_count} line(s) have been manually closed."
+
+                    f"These orders will remain closed even if they appear in future uploads.",
+                    parent=self
                 )
                 # Refresh the data to remove closed orders from the view
                 self.refresh_data()
             except Exception as e:
-                self.log(f"ERROR: Failed to close order lines: {e}")
+                self.log(f"✗ ERROR: Failed to close order lines: {e}")
                 messagebox.showerror(
                     "Database Error",
                     f"Failed to close order lines:\n{str(e)}",
@@ -7760,7 +7795,7 @@ class OpenOrderBookWindow(tk.Toplevel):
             # Open the new preview window
             POPreviewWindow(self, self.log, self.dm, po_number)
         else:
-            self.log("WARNING: Could not identify PO number from the selected line.")
+            self.log("⚠ WARNING: Could not identify PO number from the selected line.")
 
     def refresh_data(self):
         """Load fresh data from database"""
@@ -7768,12 +7803,11 @@ class OpenOrderBookWindow(tk.Toplevel):
             self.all_orders = self.dm.get_all_open_orders()
             self.load_suppliers()
             self.apply_filters()
-            self.log("INFO: Order book data refreshed")
+            self.log("ℹ️ INFO: Order book data refreshed")
         except Exception as e:
-            messagebox.showerror(
-                "Error", f"Failed to load order data:\n{str(e)}", parent=self
+            messagebox.showerror("❌ Error", f"Failed to load order data:\n{str(e)}", parent=self
             )
-            self.log(f"ERROR: Failed to refresh order data: {e}")
+            self.log(f"✗ ERROR: Failed to refresh order data: {e}")
 
     def load_suppliers(self):
         """Load supplier list for filter"""
@@ -8047,7 +8081,7 @@ class OpenOrderBookWindow(tk.Toplevel):
                 self.tree.move(child, "", index)
 
         except Exception as e:
-            self.log(f"WARNING: Sort failed for column {col}: {e}")
+            self.log(f"⚠ WARNING: Sort failed for column {col}: {e}")
 
     def clear_filters(self):
         """Clear all active filters"""
@@ -8140,13 +8174,13 @@ class OpenOrderBookWindow(tk.Toplevel):
                 f"Exported {len(export_data)} filtered orders to:\n{file_path}",
                 parent=self,
             )
-            self.log(f"SUCCESS: Exported {len(export_data)} filtered orders to Excel")
+            self.log(f"✓ SUCCESS: Exported {len(export_data)} filtered orders to Excel")
 
         except Exception as e:
             messagebox.showerror(
                 "Export Error", f"Failed to export data:\n{str(e)}", parent=self
             )
-            self.log(f"ERROR: Export failed: {e}")
+            self.log(f"✗ ERROR: Export failed: {e}")
 
     def show_arriving_orders_this_week(self):
         """Show orders arriving in current week (Monday-Sunday)"""
@@ -8214,7 +8248,7 @@ class OpenOrderBookWindow(tk.Toplevel):
                         arriving_orders.append(order_dict)
                         
                 except Exception as e:
-                    self.log(f"ERROR: Failed to process order {order.get('po')}: {e}")
+                    self.log(f"✗ ERROR: Failed to process order {order.get('po')}: {e}")
                     continue
             
             if not arriving_orders:
@@ -8235,12 +8269,11 @@ class OpenOrderBookWindow(tk.Toplevel):
             )
             
         except Exception as e:
-            messagebox.showerror(
-                "Error",
+            messagebox.showerror("❌ Error",
                 f"Failed to calculate arriving orders:\n{str(e)}",
                 parent=self
             )
-            self.log(f"ERROR: Arriving orders calculation failed: {e}")
+            self.log(f"✗ ERROR: Arriving orders calculation failed: {e}")
 
 
 # ==============================================================================
@@ -8408,12 +8441,11 @@ class ArrivingOrdersWindow(tk.Toplevel):
             # Export to Excel
             df_export.to_excel(file_path, index=False, sheet_name="Arriving Orders")
             
-            messagebox.showinfo(
-                "Success",
+            messagebox.showinfo("✅ Success",
                 f"Exported {len(self.orders)} orders to:\n{file_path}",
                 parent=self
             )
-            self.log(f"INFO: Exported arriving orders to {file_path}")
+            self.log(f"ℹ️ INFO: Exported arriving orders to {file_path}")
             
         except Exception as e:
             messagebox.showerror(
@@ -8421,7 +8453,7 @@ class ArrivingOrdersWindow(tk.Toplevel):
                 f"Failed to export:\n{str(e)}",
                 parent=self
             )
-            self.log(f"ERROR: Export failed: {e}")
+            self.log(f"✗ ERROR: Export failed: {e}")
 
 
 # ==============================================================================
@@ -8584,7 +8616,7 @@ class EmailSender:
                         return f.read()
             return ""
         except Exception as e:
-            self.log(f"WARNING: Could not load Outlook signature: {e}")
+            self.log(f"⚠ WARNING: Could not load Outlook signature: {e}")
             return ""
 
     def _send_smtp(self, to_emails, subject, body, attachment_path=None, use_custom_signature=False):
@@ -8736,7 +8768,7 @@ class EmailSender:
                         to_emails, subject, body, pdf_path, use_custom_signature
                     )
             except Exception as e:
-                self.log(f"ERROR: Failed to send PO {po_number}: {e}")
+                self.log(f"✗ ERROR: Failed to send PO {po_number}: {e}")
                 message = str(e)
 
             if success:
@@ -8752,7 +8784,7 @@ class EmailSender:
                     os.rename(pdf_path, sent_pdf_path)
 
                 fallback_tag = " (fallback)" if is_fallback else ""
-                self.log(f"SUCCESS: PO {po_number} sent{fallback_tag}. {message}")
+                self.log(f"✓ SUCCESS: PO {po_number} sent{fallback_tag}. {message}")
             else:
                 failed_count += 1
                 failed_details.append(f"PO {po_number}: {message}")
@@ -9010,8 +9042,7 @@ class POManagementWindow(tk.Toplevel):
 
                 self.after(
                     0,
-                    lambda: messagebox.showinfo(
-                        "Success",
+                    lambda: messagebox.showinfo("✅ Success",
                         f"Successfully generated {generated_count} PO PDF(s).",
                         parent=self,
                     ),
@@ -9024,8 +9055,7 @@ class POManagementWindow(tk.Toplevel):
                 self.gen_log.insert(tk.END, f"\nERROR: {e}\n")
                 self.after(
                     0,
-                    lambda: messagebox.showerror(
-                        "Error", f"Failed to generate PDFs: {e}", parent=self
+                    lambda: messagebox.showerror("❌ Error", f"Failed to generate PDFs: {e}", parent=self
                     ),
                 )
 
@@ -9302,10 +9332,9 @@ class SettingsWindow(tk.Toplevel):
         }
 
         self.dm.save_config("email_templates", config)
-        messagebox.showinfo(
-            "Success", "Email templates saved successfully.", parent=self
+        messagebox.showinfo("✅ Success", "Email templates saved successfully.", parent=self
         )
-        self.log("INFO: Email templates saved")
+        self.log("ℹ️ INFO: Email templates saved")
 
     def setup_smtp_tab(self, parent):
         """SMTP configuration (unchanged)"""
@@ -9447,16 +9476,14 @@ class SettingsWindow(tk.Toplevel):
             try:
                 shutil.copy2(filename, logo_dest)
                 self.logo_path_var.set(logo_dest)
-                messagebox.showinfo(
-                    "Success", "Logo uploaded successfully!", parent=self
+                messagebox.showinfo("✅ Success", "Logo uploaded successfully!", parent=self
                 )
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to copy logo: {e}", parent=self)
+                messagebox.showerror("❌ Error", f"Failed to copy logo: {e}", parent=self)
 
     def clear_logo(self):
         """Clear the logo"""
-        if messagebox.askyesno(
-            "Confirm", "Remove company logo from PO template?", parent=self
+        if messagebox.askyesno("❓ Confirm", "Remove company logo from PO template?", parent=self
         ):
             self.logo_path_var.set("")
 
@@ -9476,8 +9503,8 @@ class SettingsWindow(tk.Toplevel):
         config["company_logo_path"] = self.logo_path_var.get()
 
         self.dm.save_config("company_config", config)
-        messagebox.showinfo("Success", "Company configuration saved.", parent=self)
-        self.log("INFO: Company configuration saved")
+        messagebox.showinfo("✅ Success", "Company configuration saved.", parent=self)
+        self.log("ℹ️ INFO: Company configuration saved")
 
     def load_company_config(self):
         """Load company configuration including logo"""
@@ -9515,11 +9542,11 @@ class SettingsWindow(tk.Toplevel):
         try:
             config["smtp_port"] = int(config["smtp_port"])
         except ValueError:
-            messagebox.showerror("Error", "Port must be a number.", parent=self)
+            messagebox.showerror("❌ Error", "Port must be a number.", parent=self)
             return
 
         self.dm.save_config("smtp_settings", config)
-        messagebox.showinfo("Success", "SMTP settings saved.", parent=self)
+        messagebox.showinfo("✅ Success", "SMTP settings saved.", parent=self)
 
     def test_smtp_connection(self):
         config = {key: var.get() for key, var in self.smtp_fields.items()}
@@ -9530,7 +9557,7 @@ class SettingsWindow(tk.Toplevel):
                 server.starttls()
             server.login(config["smtp_username"], config["smtp_password"])
             server.quit()
-            messagebox.showinfo("Success", "SMTP connection successful!", parent=self)
+            messagebox.showinfo("✅ Success", "SMTP connection successful!", parent=self)
         except Exception as e:
             messagebox.showerror(
                 "Connection Failed", f"Could not connect:\n{e}", parent=self
@@ -9567,21 +9594,21 @@ class SettingsWindow(tk.Toplevel):
         
         ttk.Button(
             button_frame,
-            text=" Open Visual Editor",
+            text="🖼️ Open Visual Editor",
             command=self.open_signature_editor,
             width=25
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             button_frame,
-            text=" Save Signature",
+            text="💾 Save Signature",
             command=self.save_signature,
             width=20
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             button_frame,
-            text=" Test Email",
+            text="📧 Test Email",
             command=self.test_signature_email,
             width=20
         ).pack(side=tk.LEFT, padx=5)
@@ -9625,8 +9652,8 @@ class SettingsWindow(tk.Toplevel):
             # Pass self.update_signature_display as the callback
             ImprovedSignatureEditor(self, self.dm.db, self.log, on_save_callback=self.update_signature_display)
         except Exception as e:
-            self.log(f"ERROR: Failed to open signature editor: {e}")
-            messagebox.showerror("Error", f"Failed to open signature editor:\n{e}", parent=self)
+            self.log(f"✗ ERROR: Failed to open signature editor: {e}")
+            messagebox.showerror("❌ Error", f"Failed to open signature editor:\n{e}", parent=self)
         
         
     def update_signature_display(self, html_content):
@@ -9639,7 +9666,7 @@ class SettingsWindow(tk.Toplevel):
         self.signature_preview.delete("1.0", tk.END)
         self.signature_preview.insert("1.0", html_content)
         self.signature_preview.config(state='disabled')
-        self.log("INFO: Signature display updated from visual editor.")
+        self.log("ℹ️ INFO: Signature display updated from visual editor.")
 
     def save_signature(self):
         """Save signature to database"""
@@ -9662,12 +9689,12 @@ class SettingsWindow(tk.Toplevel):
             self.signature_preview.insert("1.0", html_content)
             self.signature_preview.config(state='disabled')
             
-            messagebox.showinfo("Success", "Email signature saved successfully!", parent=self)
-            self.log("INFO: Email signature saved")
+            messagebox.showinfo("✅ Success", "Email signature saved successfully!", parent=self)
+            self.log("ℹ️ INFO: Email signature saved")
             
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save signature:\n{e}", parent=self)
-            self.log(f"ERROR: Failed to save signature: {e}")
+            messagebox.showerror("❌ Error", f"Failed to save signature:\n{e}", parent=self)
+            self.log(f"✗ ERROR: Failed to save signature: {e}")
             
     def load_signature(self):
         """Load signature from database"""
@@ -9700,14 +9727,14 @@ class SettingsWindow(tk.Toplevel):
                 self.signature_preview.config(state='disabled')
                 
         except Exception as e:
-            self.log(f"INFO: No existing signature found or error loading: {e}")
+            self.log(f"ℹ️ INFO: No existing signature found or error loading: {e}")
         
         # Load the use_custom_signature preference
         try:
             use_custom = self.dm.get_config("use_custom_signature", False)
             self.use_custom_signature_var.set(use_custom)
         except Exception as e:
-            self.log(f"INFO: Could not load use_custom_signature preference: {e}")
+            self.log(f"ℹ️ INFO: Could not load use_custom_signature preference: {e}")
             
     def test_signature_email(self):
         """Send a test email with signature using EmailSender"""
@@ -9740,7 +9767,7 @@ class SettingsWindow(tk.Toplevel):
             method = "SMTP" if self.dm.get_config("smtp_settings") else "Outlook"
 
             if method == "Outlook" and not OUTLOOK_AVAILABLE:
-                messagebox.showerror("Error", "Outlook not available and SMTP not configured.", parent=self)
+                messagebox.showerror("❌ Error", "Outlook not available and SMTP not configured.", parent=self)
                 return
 
             success = False
@@ -9757,15 +9784,15 @@ class SettingsWindow(tk.Toplevel):
 
             if success:
                 sig_type = "Outlook + Custom" if include_both else "Custom Only"
-                messagebox.showinfo("Success", f"Test email sent to {test_email}!\n\nShowing: {sig_type}", parent=self)
-                self.log(f"INFO: Test signature email sent ({sig_type})")
+                messagebox.showinfo("✅ Success", f"Test email sent to {test_email}!\n\nShowing: {sig_type}", parent=self)
+                self.log(f"ℹ️ INFO: Test signature email sent ({sig_type})")
             else:
-                messagebox.showerror("Error", f"Failed to send test email:\n{message}", parent=self)
-                self.log(f"ERROR: Failed to send test email: {message}")
+                messagebox.showerror("❌ Error", f"Failed to send test email:\n{message}", parent=self)
+                self.log(f"✗ ERROR: Failed to send test email: {message}")
 
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to send test email:\n{e}", parent=self)
-            self.log(f"ERROR: Failed to send test email: {e}")
+            messagebox.showerror("❌ Error", f"Failed to send test email:\n{e}", parent=self)
+            self.log(f"✗ ERROR: Failed to send test email: {e}")
             
 class SignatureEditorWindow(tk.Toplevel):
     """Visual editor for creating email signatures with editable text on canvas"""
@@ -9974,7 +10001,7 @@ class SignatureEditorWindow(tk.Toplevel):
                 self.elements.append(element)
                 
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to load image:\n{e}", parent=self)
+                messagebox.showerror("❌ Error", f"Failed to load image:\n{e}", parent=self)
                 
     def add_contact_template(self):
         """Add contact information template"""
@@ -10218,24 +10245,23 @@ class SignatureEditorWindow(tk.Toplevel):
         self.text_widget.delete("1.0", tk.END)
         self.text_widget.insert("1.0", html_content)
         
-        messagebox.showinfo(
-            "Success",
+        messagebox.showinfo("✅ Success",
             "HTML generated! Close this window and save your signature.",
             parent=self
         )
         
     def clear_all(self):
         """Clear all elements"""
-        if messagebox.askyesno("Confirm", "Clear all elements from canvas?", parent=self):
+        if messagebox.askyesno("❓ Confirm", "Clear all elements from canvas?", parent=self):
             self.canvas.delete("all")
             self.elements = []
             self.selected_element = None
 
-        messagebox.showinfo("Success", "HTML generated! Close this window and save your signature.", parent=self)
+        messagebox.showinfo("✅ Success", "HTML generated! Close this window and save your signature.", parent=self)
         
     def clear_all(self):
         """Clear all elements"""
-        if messagebox.askyesno("Confirm", "Clear all elements?", parent=self):
+        if messagebox.askyesno("❓ Confirm", "Clear all elements?", parent=self):
             self.canvas.delete("all")
             self.elements = []
 
@@ -10460,7 +10486,7 @@ class RemoteOperationsApp:
                 self.root, self.log, self.dm, self.get_selected_send_method
             )
         except Exception as e:
-            self.log(f"ERROR: Failed to open PO Management: {e}")
+            self.log(f"✗ ERROR: Failed to open PO Management: {e}")
             import traceback
 
             traceback.print_exc()
@@ -10469,7 +10495,7 @@ class RemoteOperationsApp:
         try:
             SettingsWindow(self.root, self.log, self.dm)
         except Exception as e:
-            self.log(f"ERROR: Failed to open Settings: {e}")
+            self.log(f"✗ ERROR: Failed to open Settings: {e}")
             import traceback
 
             traceback.print_exc()
@@ -10478,7 +10504,7 @@ class RemoteOperationsApp:
         try:
             VendorManagerWindow(self.root, self.log, self.dm)
         except Exception as e:
-            self.log(f"ERROR: Failed to open Vendor Manager: {e}")
+            self.log(f"✗ ERROR: Failed to open Vendor Manager: {e}")
             import traceback
 
             traceback.print_exc()
@@ -10487,7 +10513,7 @@ class RemoteOperationsApp:
         try:
             OpenOrderBookWindow(self.root, self.log, self.dm)
         except Exception as e:
-            self.log(f"ERROR: Failed to open Order Book: {e}")
+            self.log(f"✗ ERROR: Failed to open Order Book: {e}")
             import traceback
 
             traceback.print_exc()
@@ -10496,7 +10522,7 @@ class RemoteOperationsApp:
         try:
             RescheduleConfigWindow(self.root, self.log, self.dm)
         except Exception as e:
-            self.log(f"ERROR: Failed to open Reschedule Config: {e}")
+            self.log(f"✗ ERROR: Failed to open Reschedule Config: {e}")
             import traceback
 
             traceback.print_exc()
@@ -10509,7 +10535,7 @@ class RemoteOperationsApp:
                 self.root, self.log, self.dm, self.forecast_manager
             )
         except Exception as e:
-            self.log(f"ERROR: Failed to open Forecast Management: {e}")
+            self.log(f"✗ ERROR: Failed to open Forecast Management: {e}")
             import traceback
 
             traceback.print_exc()
@@ -10518,7 +10544,7 @@ class RemoteOperationsApp:
         try:
             MRPPlanningWindow(self.root, self.log, self.dm)
         except Exception as e:
-            self.log(f"ERROR: Failed to open MRP Planning: {e}")
+            self.log(f"✗ ERROR: Failed to open MRP Planning: {e}")
             import traceback
 
             traceback.print_exc()
@@ -10528,7 +10554,7 @@ class RemoteOperationsApp:
         try:
             EmailConfirmationScannerWindow(self.root, self.log, self.dm)
         except Exception as e:
-            self.log(f"ERROR: Failed to open Email Scanner: {e}")
+            self.log(f"✗ ERROR: Failed to open Email Scanner: {e}")
             import traceback
 
             traceback.print_exc()
@@ -10633,13 +10659,13 @@ class VendorManagerWindow(tk.Toplevel):
 
         button_frame = ttk.Frame(self)
         button_frame.pack(fill=tk.X, padx=10, pady=10)
-        ttk.Button(button_frame, text="Add New", command=self.prepare_for_new).pack(
+        ttk.Button(button_frame, text="➕ Add New", command=self.prepare_for_new).pack(
             side=tk.LEFT
         )
-        ttk.Button(button_frame, text="Delete", command=self.delete_vendor).pack(
+        ttk.Button(button_frame, text="🗑️ Delete", command=self.delete_vendor).pack(
             side=tk.LEFT, padx=5
         )
-        ttk.Button(button_frame, text="Save Changes", command=self.save_vendor).pack(
+        ttk.Button(button_frame, text="💾 Save Changes", command=self.save_vendor).pack(
             side=tk.RIGHT
         )
 
@@ -10735,7 +10761,7 @@ class VendorManagerWindow(tk.Toplevel):
             messagebox.showerror(
                 "Upload Error", f"Failed to process Excel file:\n{str(e)}", parent=self
             )
-            self.log(f"ERROR: Batch upload failed: {e}")
+            self.log(f"✗ ERROR: Batch upload failed: {e}")
 
     def show_upload_preview(self, df, vendor_col, email_col, sec_transport_col):
         """Show preview dialog for batch upload"""
@@ -10905,19 +10931,19 @@ class VendorManagerWindow(tk.Toplevel):
                         ]
                         self.dm.update_vendor(original_name, vendor_data)
                         updated_count += 1
-                        self.log(f"INFO: Updated vendor '{vendor_name}'")
+                        self.log(f"ℹ️ INFO: Updated vendor '{vendor_name}'")
                     else:
                         skipped_count += 1
-                        self.log(f"INFO: Skipped existing vendor '{vendor_name}'")
+                        self.log(f"ℹ️ INFO: Skipped existing vendor '{vendor_name}'")
                 else:
                     # Create new vendor
                     self.dm.create_vendor(vendor_data)
                     created_count += 1
-                    self.log(f"INFO: Created new vendor '{vendor_name}'")
+                    self.log(f"ℹ️ INFO: Created new vendor '{vendor_name}'")
 
             except Exception as e:
                 error_count += 1
-                self.log(f"ERROR: Failed to process vendor '{vendor_name}': {e}")
+                self.log(f"✗ ERROR: Failed to process vendor '{vendor_name}': {e}")
 
         # Show results
         result_message = f"Batch Upload Complete:\n\n"
@@ -10928,7 +10954,7 @@ class VendorManagerWindow(tk.Toplevel):
 
         messagebox.showinfo("Upload Results", result_message, parent=self)
         self.log(
-            f"SUCCESS: Batch upload completed - Created: {created_count}, Updated: {updated_count}, Skipped: {skipped_count}, Errors: {error_count}"
+            f"✓ SUCCESS: Batch upload completed - Created: {created_count}, Updated: {updated_count}, Skipped: {skipped_count}, Errors: {error_count}"
         )
 
         # Refresh the vendor list
@@ -10994,13 +11020,13 @@ class VendorManagerWindow(tk.Toplevel):
                 f"Exported {len(vendors)} vendors to:\n{file_path}",
                 parent=self,
             )
-            self.log(f"SUCCESS: Exported {len(vendors)} vendors to Excel file")
+            self.log(f"✓ SUCCESS: Exported {len(vendors)} vendors to Excel file")
 
         except Exception as e:
             messagebox.showerror(
                 "Export Error", f"Failed to export vendors:\n{str(e)}", parent=self
             )
-            self.log(f"ERROR: Export failed: {e}")
+            self.log(f"✗ ERROR: Export failed: {e}")
 
     def refresh_vendor_list(self):
         self.vendors_data = self.dm.get_all_vendors()
@@ -11065,8 +11091,7 @@ class VendorManagerWindow(tk.Toplevel):
                 self.fields["Secondary Transport Days"].get() or 0
             )
         except ValueError:
-            messagebox.showerror(
-                "Error", "Transport Days fields must be numbers.", parent=self
+            messagebox.showerror("❌ Error", "Transport Days fields must be numbers.", parent=self
             )
             return
 
@@ -11076,10 +11101,10 @@ class VendorManagerWindow(tk.Toplevel):
                 and self.current_vendor_name != "New Vendor Name"
             ):
                 self.dm.update_vendor(self.current_vendor_name, data)
-                self.log(f"INFO: Updated vendor '{data['display_name']}'")
+                self.log(f"ℹ️ INFO: Updated vendor '{data['display_name']}'")
             else:
                 new_vendor = self.dm.create_vendor(data)
-                self.log(f"INFO: Created new vendor '{data['display_name']}'")
+                self.log(f"ℹ️ INFO: Created new vendor '{data['display_name']}'")
                 messagebox.showinfo(
                     "API Key",
                     f"Vendor created.\n\nAPI Key: {new_vendor['api_key']}",
@@ -11097,8 +11122,7 @@ class VendorManagerWindow(tk.Toplevel):
                 "No Selection", "Please select a vendor to delete.", parent=self
             )
             return
-        if not messagebox.askyesno(
-            "Confirm",
+        if not messagebox.askyesno("❓ Confirm",
             f"Delete '{self.current_vendor_name}'? This cannot be undone.",
             parent=self,
         ):
@@ -11106,10 +11130,10 @@ class VendorManagerWindow(tk.Toplevel):
 
         try:
             self.dm.delete_vendor(self.current_vendor_name)
-            self.log(f"INFO: Deleted vendor '{self.current_vendor_name}'")
+            self.log(f"ℹ️ INFO: Deleted vendor '{self.current_vendor_name}'")
             self.refresh_vendor_list()
         except Exception as e:
-            messagebox.showerror("Error", f"Could not delete vendor: {e}", parent=self)
+            messagebox.showerror("❌ Error", f"Could not delete vendor: {e}", parent=self)
 
     def generate_api_key(self):
         if not self.current_vendor_name:
@@ -11117,8 +11141,7 @@ class VendorManagerWindow(tk.Toplevel):
                 "No Selection", "Please select a vendor first.", parent=self
             )
             return
-        if not messagebox.askyesno(
-            "Confirm",
+        if not messagebox.askyesno("❓ Confirm",
             f"Generate a new API key for '{self.current_vendor_name}'? The old key will be invalidated.",
             parent=self,
         ):
@@ -11211,12 +11234,12 @@ class SMTPConfigWindow(tk.Toplevel):
         try:
             config["smtp_port"] = int(config["smtp_port"])
         except ValueError:
-            messagebox.showerror("Error", "Port must be a number.", parent=self)
+            messagebox.showerror("❌ Error", "Port must be a number.", parent=self)
             return
 
         self.dm.save_config("smtp_settings", config)
-        self.log("INFO: SMTP settings saved.")
-        messagebox.showinfo("Success", "SMTP settings saved.", parent=self)
+        self.log("ℹ️ INFO: SMTP settings saved.")
+        messagebox.showinfo("✅ Success", "SMTP settings saved.", parent=self)
         self.destroy()
 
     def test_connection(self):
@@ -11228,7 +11251,7 @@ class SMTPConfigWindow(tk.Toplevel):
                 server.starttls()
             server.login(config["smtp_username"], config["smtp_password"])
             server.quit()
-            messagebox.showinfo("Success", "SMTP connection successful!", parent=self)
+            messagebox.showinfo("✅ Success", "SMTP connection successful!", parent=self)
         except Exception as e:
             messagebox.showerror(
                 "Connection Failed",
@@ -11326,7 +11349,7 @@ class EmailConfigWindow(tk.Toplevel):
             "portal_link_template": self.portal_text.get("1.0", "end-1c"),
         }
         self.dm.save_config("email_config", config)
-        messagebox.showinfo("Success", "Email configuration saved.", parent=self)
+        messagebox.showinfo("✅ Success", "Email configuration saved.", parent=self)
         self.destroy()
 
 
@@ -11390,7 +11413,7 @@ class CompanyConfigWindow(tk.Toplevel):
             else:
                 config[key] = widget.get().strip()
         self.dm.save_config("company_config", config)
-        messagebox.showinfo("Success", "Company configuration saved.", parent=self)
+        messagebox.showinfo("✅ Success", "Company configuration saved.", parent=self)
         self.destroy()
 
 
@@ -11545,7 +11568,7 @@ class POCreatorWindow(tk.Toplevel):
                 )
                 self.lines_tree.insert("", "end", values=values)
 
-            self.log(f"INFO: Loaded {len(results)} line(s) for PO {po_number}")
+            self.log(f"ℹ️ INFO: Loaded {len(results)} line(s) for PO {po_number}")
             messagebox.showinfo(
                 "PO Loaded",
                 f"Loaded {len(results)} line item(s) for PO {po_number}",
@@ -11553,8 +11576,8 @@ class POCreatorWindow(tk.Toplevel):
             )
 
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load PO: {str(e)}", parent=self)
-            self.log(f"ERROR: Failed to load PO {po_number}: {e}")
+            messagebox.showerror("❌ Error", f"Failed to load PO: {str(e)}", parent=self)
+            self.log(f"✗ ERROR: Failed to load PO {po_number}: {e}")
 
     def add_line(self):
         """Manually add a line item"""
@@ -11581,8 +11604,7 @@ class POCreatorWindow(tk.Toplevel):
         vendor = self.supplier_var.get().strip()
 
         if not po_number or not vendor:
-            messagebox.showerror(
-                "Error", "PO Number and Supplier are required.", parent=self
+            messagebox.showerror("❌ Error", "PO Number and Supplier are required.", parent=self
             )
             return
 
@@ -11624,8 +11646,7 @@ class POCreatorWindow(tk.Toplevel):
                 return
 
         if not lines:
-            messagebox.showerror(
-                "Error", "At least one line item is required.", parent=self
+            messagebox.showerror("❌ Error", "At least one line item is required.", parent=self
             )
             return
 
@@ -11650,16 +11671,15 @@ class POCreatorWindow(tk.Toplevel):
                     pdf_buffer.seek(0)
                     f.write(pdf_buffer.read())
 
-                messagebox.showinfo(
-                    "Success",
+                messagebox.showinfo("✅ Success",
                     f"PO PDF saved to {save_path} and is ready to be sent.",
                     parent=self,
                 )
-                self.log(f"SUCCESS: Created PO {po_number} and saved PDF.")
+                self.log(f"✓ SUCCESS: Created PO {po_number} and saved PDF.")
                 self.destroy()
         except Exception as e:
-            self.log(f"ERROR: Failed to create PO: {e}")
-            messagebox.showerror("Error", f"Failed to create PO: {e}", parent=self)
+            self.log(f"✗ ERROR: Failed to create PO: {e}")
+            messagebox.showerror("❌ Error", f"Failed to create PO: {e}", parent=self)
 
 
 class RescheduleConfigWindow(tk.Toplevel):
@@ -12043,7 +12063,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
         # Show loading message
         format_type = "PDF" if filters["use_pdf_format"] else "Excel"
         self.log(
-            f"INFO: Generating {format_type} reschedule files with advanced filters..."
+            f"ℹ️ INFO: Generating {format_type} reschedule files with advanced filters..."
         )
         threading.Thread(target=generate_files_thread, daemon=True).start()
 
@@ -12052,22 +12072,21 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
         if files_created > 0:
             format_type = "PDF" if self.output_format_var.get() == "pdf" else "Excel"
             message = f"Successfully generated {files_created} {format_type} reschedule file(s) in the 'reschedule_output' folder."
-            messagebox.showinfo("Success", message, parent=self)
+            messagebox.showinfo("✅ Success", message, parent=self)
             self.log(
-                f"SUCCESS: Generated {files_created} {format_type} reschedule files with advanced filters."
+                f"✓ SUCCESS: Generated {files_created} {format_type} reschedule files with advanced filters."
             )
         else:
             message = (
                 "No orders found matching the specified criteria to generate files for."
             )
             messagebox.showinfo("No Data", message, parent=self)
-            self.log("INFO: No reschedule data found for the given filters.")
+            self.log("ℹ️ INFO: No reschedule data found for the given filters.")
 
     def show_generation_error(self, error_message):
         """Show error message for file generation failure"""
-        self.log(f"ERROR: Failed to generate reschedule files: {error_message}")
-        messagebox.showerror(
-            "Error", f"Failed to generate files:\n{error_message}", parent=self
+        self.log(f"✗ ERROR: Failed to generate reschedule files: {error_message}")
+        messagebox.showerror("❌ Error", f"Failed to generate files:\n{error_message}", parent=self
         )
 
     def send_reschedule_emails_only(self):
@@ -12136,8 +12155,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                     OUTLOOK_AVAILABLE = True
                 except ImportError:
                     OUTLOOK_AVAILABLE = False
-                    messagebox.showerror(
-                        "Error",
+                    messagebox.showerror("❌ Error",
                         "Outlook is not available. Please use SMTP method.",
                         parent=self,
                     )
@@ -12203,7 +12221,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                                 ):
                                     sent_count += 1
                                     self.log(
-                                        f"SUCCESS: Sent reschedule email to {supplier_name}"
+                                        f"✓ SUCCESS: Sent reschedule email to {supplier_name}"
                                     )
                                 else:
                                     failed_count += 1
@@ -12214,7 +12232,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                                 failed_count += 1
                                 failed_details.append(f"{supplier_name}: {str(e)}")
                                 self.log(
-                                    f"ERROR: Failed to send to {supplier_name}: {e}"
+                                    f"✗ ERROR: Failed to send to {supplier_name}: {e}"
                                 )
                             finally:
                                 # Clean up temp file
@@ -12251,7 +12269,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                         ):
                             sent_count += 1
                             self.log(
-                                f"SUCCESS: Sent reschedule email to {supplier_name}"
+                                f"✓ SUCCESS: Sent reschedule email to {supplier_name}"
                             )
                         else:
                             failed_count += 1
@@ -12259,7 +12277,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                     except Exception as e:
                         failed_count += 1
                         failed_details.append(f"{supplier_name}: {str(e)}")
-                        self.log(f"ERROR: Failed to send to {supplier_name}: {e}")
+                        self.log(f"✗ ERROR: Failed to send to {supplier_name}: {e}")
 
             # Show summary
             summary = f"Sent {sent_count} reschedule email(s), Failed {failed_count}"
@@ -12267,12 +12285,11 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                 summary += "\n\nFailures:\n" + "\n".join(failed_details)
 
             messagebox.showinfo("Email Results", summary, parent=self)
-            self.log(f"INFO: Reschedule email batch complete: {summary}")
+            self.log(f"ℹ️ INFO: Reschedule email batch complete: {summary}")
 
         except Exception as e:
-            self.log(f"ERROR: Failed to send reschedule emails: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to send emails:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to send reschedule emails: {e}")
+            messagebox.showerror("❌ Error", f"Failed to send emails:\n{str(e)}", parent=self
             )
 
     def send_single_reschedule_email(
@@ -12294,7 +12311,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                 )
                 return success
         except Exception as e:
-            self.log(f"ERROR: Failed to send email: {e}")
+            self.log(f"✗ ERROR: Failed to send email: {e}")
             return False
 
 
@@ -12417,7 +12434,7 @@ class EnhancedEmailPreviewWindow(tk.Toplevel):
 
                 # PDF not in database - use fallback extraction
                 self.log(
-                    f"INFO: Found PDF {filename} not in database, using fallback extraction..."
+                    f"ℹ️ INFO: Found PDF {filename} not in database, using fallback extraction..."
                 )
 
                 # Extract supplier name (returns display name)
@@ -12425,7 +12442,7 @@ class EnhancedEmailPreviewWindow(tk.Toplevel):
 
                 if not supplier_name:
                     self.log(
-                        f"WARNING: Could not extract supplier name from {filename}. Skipping."
+                        f"⚠ WARNING: Could not extract supplier name from {filename}. Skipping."
                     )
                     continue
 
@@ -12433,7 +12450,7 @@ class EnhancedEmailPreviewWindow(tk.Toplevel):
 
                 if not emails:
                     self.log(
-                        f"WARNING: No email found for supplier '{supplier_name}' from {filename}. Skipping."
+                        f"⚠ WARNING: No email found for supplier '{supplier_name}' from {filename}. Skipping."
                     )
                     continue
 
@@ -12454,11 +12471,11 @@ class EnhancedEmailPreviewWindow(tk.Toplevel):
                     values=(fallback_po["po"], supplier_name, emails[0], "Fallback"),
                 )
                 self.log(
-                    f"SUCCESS: Added {filename} via fallback (supplier: {supplier_name})"
+                    f"✓ SUCCESS: Added {filename} via fallback (supplier: {supplier_name})"
                 )
 
         except Exception as e:
-            self.log(f"ERROR: Fallback scan failed: {e}")
+            self.log(f"✗ ERROR: Fallback scan failed: {e}")
             import traceback
 
             traceback.print_exc()
@@ -12493,8 +12510,7 @@ class EnhancedEmailPreviewWindow(tk.Toplevel):
         method = self.get_send_method()
         use_custom_sig = self.use_custom_sig_var.get()
         
-        if not messagebox.askyesno(
-            "Confirm", f"Send {len(pos_to_send)} email(s) via {method}?\n{'Using custom signature' if use_custom_sig else 'Using Outlook signature'}", parent=self
+        if not messagebox.askyesno("❓ Confirm", f"Send {len(pos_to_send)} email(s) via {method}?\n{'Using custom signature' if use_custom_sig else 'Using Outlook signature'}", parent=self
         ):
             return
 
@@ -12576,7 +12592,7 @@ class POPreviewWindow(tk.Toplevel):
         self.pdf_status_label.pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
-            pdf_status_frame, text="Generate PDF", command=self.generate_pdf
+            pdf_status_frame, text="📄 Generate PDF", command=self.generate_pdf
         ).pack(side=tk.LEFT, padx=5)
         ttk.Button(
             pdf_status_frame, text="Open PDF", command=self.open_pdf, state=tk.DISABLED
@@ -12629,7 +12645,7 @@ class POPreviewWindow(tk.Toplevel):
         btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, pady=(10, 0))
 
-        ttk.Button(btn_frame, text="Save Changes", command=self.save_changes).pack(
+        ttk.Button(btn_frame, text="💾 Save Changes", command=self.save_changes).pack(
             side=tk.LEFT, padx=5
         )
         
@@ -12854,10 +12870,9 @@ class POPreviewWindow(tk.Toplevel):
                     updated_count += 1
             
             self.log(
-                f"INFO: Updated {updated_count} lines on PO {self.po_number}."
+                f"ℹ️ INFO: Updated {updated_count} lines on PO {self.po_number}."
             )
-            messagebox.showinfo(
-                "Success",
+            messagebox.showinfo("✅ Success",
                 f"Successfully updated {updated_count} line(s).\n\n"
                 "TIP: You may want to regenerate the PDF with updated information.",
                 parent=self,
@@ -12876,9 +12891,8 @@ class POPreviewWindow(tk.Toplevel):
             self.load_po_data()
 
         except Exception as e:
-            self.log(f"ERROR: Failed to save changes: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to save changes:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to save changes: {e}")
+            messagebox.showerror("❌ Error", f"Failed to save changes:\n{str(e)}", parent=self
             )
 
     def check_pdf_exists(self):
@@ -12908,7 +12922,7 @@ class POPreviewWindow(tk.Toplevel):
                 return
             self.save_changes()
 
-        self.log(f"INFO: Generating PDF for PO {self.po_number}...")
+        self.log(f"ℹ️ INFO: Generating PDF for PO {self.po_number}...")
 
         try:
             # Get PO data from database
@@ -12925,8 +12939,7 @@ class POPreviewWindow(tk.Toplevel):
             results = self.dm.db.execute_query(query, (self.po_number,), fetchall=True)
 
             if not results:
-                messagebox.showerror(
-                    "Error", "No data found for PDF generation", parent=self
+                messagebox.showerror("❌ Error", "No data found for PDF generation", parent=self
                 )
                 return
 
@@ -12951,17 +12964,15 @@ class POPreviewWindow(tk.Toplevel):
                 # Update database status
                 self.dm.mark_pos_as_created([self.po_number])
 
-                self.log(f"SUCCESS: Generated PDF for PO {self.po_number}")
-                messagebox.showinfo(
-                    "Success", f"PDF generated successfully!\n\n{pdf_path}", parent=self
+                self.log(f"✓ SUCCESS: Generated PDF for PO {self.po_number}")
+                messagebox.showinfo("✅ Success", f"PDF generated successfully!\n\n{pdf_path}", parent=self
                 )
             else:
-                messagebox.showerror("Error", "Failed to generate PDF", parent=self)
+                messagebox.showerror("❌ Error", "Failed to generate PDF", parent=self)
 
         except Exception as e:
-            self.log(f"ERROR: Failed to generate PDF: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to generate PDF:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to generate PDF: {e}")
+            messagebox.showerror("❌ Error", f"Failed to generate PDF:\n{str(e)}", parent=self
             )
             import traceback
 
@@ -12988,11 +12999,11 @@ class POPreviewWindow(tk.Toplevel):
             else:  # Linux
                 subprocess.run(["xdg-open", self.pdf_path])
 
-            self.log(f"INFO: Opened PDF: {self.pdf_path}")
+            self.log(f"ℹ️ INFO: Opened PDF: {self.pdf_path}")
 
         except Exception as e:
-            self.log(f"ERROR: Failed to open PDF: {e}")
-            messagebox.showerror("Error", f"Failed to open PDF:\n{str(e)}", parent=self)
+            self.log(f"✗ ERROR: Failed to open PDF: {e}")
+            messagebox.showerror("❌ Error", f"Failed to open PDF:\n{str(e)}", parent=self)
 
     def generate_and_send(self):
         """Generate PDF (if needed) and send email"""
@@ -13028,8 +13039,7 @@ class POPreviewWindow(tk.Toplevel):
         result = self.dm.db.execute_query(query, (self.po_number,), fetchone=True)
 
         if not result or not result.get("emails"):
-            messagebox.showerror(
-                "Error",
+            messagebox.showerror("❌ Error",
                 f"No email found for supplier. Please update vendor contact info.",
                 parent=self,
             )
@@ -13075,23 +13085,20 @@ class POPreviewWindow(tk.Toplevel):
                     self.pdf_path = sent_pdf_path
 
                     self.log(
-                        f"SUCCESS: Sent PO {self.po_number} to {result['display_name']}"
+                        f"✓ SUCCESS: Sent PO {self.po_number} to {result['display_name']}"
                     )
-                    messagebox.showinfo(
-                        "Success",
+                    messagebox.showinfo("✅ Success",
                         f"Email sent successfully to {result['display_name']}!",
                         parent=self,
                     )
                     self.destroy()
                 else:
-                    messagebox.showerror(
-                        "Error", f"Failed to send email:\n{message}", parent=self
+                    messagebox.showerror("❌ Error", f"Failed to send email:\n{message}", parent=self
                     )
 
         except Exception as e:
-            self.log(f"ERROR: Failed to send email: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to send email:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to send email: {e}")
+            messagebox.showerror("❌ Error", f"Failed to send email:\n{str(e)}", parent=self
             )
             import traceback
 
@@ -13412,9 +13419,8 @@ class EmailReminderWindow(tk.Toplevel):
             self.unconfirmed_data = po_groups  # Store for PDF generation
 
         except Exception as e:
-            self.log(f"ERROR: Failed to load preview: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to load preview:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to load preview: {e}")
+            messagebox.showerror("❌ Error", f"Failed to load preview:\n{str(e)}", parent=self
             )
 
     def get_filters(self):
@@ -13536,8 +13542,7 @@ class EmailReminderWindow(tk.Toplevel):
             messagebox.showwarning("No Data", "Please load preview first.", parent=self)
             return
 
-        if not messagebox.askyesno(
-            "Confirm",
+        if not messagebox.askyesno("❓ Confirm",
             f"Generate PDFs and send reminder emails to {len(self.unconfirmed_data)} supplier(s)?",
             parent=self,
         ):
@@ -13547,8 +13552,7 @@ class EmailReminderWindow(tk.Toplevel):
         pdf_paths = self.generate_reminder_pdfs()
 
         if not pdf_paths:
-            messagebox.showerror(
-                "Error", "Failed to generate PDFs. Emails not sent.", parent=self
+            messagebox.showerror("❌ Error", "Failed to generate PDFs. Emails not sent.", parent=self
             )
             return
 
@@ -13572,8 +13576,7 @@ class EmailReminderWindow(tk.Toplevel):
 
         use_separate = format_choice == "yes"
 
-        if not messagebox.askyesno(
-            "Confirm",
+        if not messagebox.askyesno("❓ Confirm",
             f"Generate PDFs and send reminder emails to {len(set(data['vendor'] for data in self.unconfirmed_data.values()))} supplier(s)?",
             parent=self,
         ):
@@ -13586,8 +13589,7 @@ class EmailReminderWindow(tk.Toplevel):
             pdf_paths = self.generate_summary_pdfs()
 
         if not pdf_paths:
-            messagebox.showerror(
-                "Error", "Failed to generate PDFs. Emails not sent.", parent=self
+            messagebox.showerror("❌ Error", "Failed to generate PDFs. Emails not sent.", parent=self
             )
             return
 
@@ -13638,20 +13640,18 @@ class EmailReminderWindow(tk.Toplevel):
                 if self.create_summary_pdf(pdf_path, vendor_name, orders):
                     pdf_paths[vendor_name] = [pdf_path]
                     self.log(
-                        f"SUCCESS: Generated summary reminder PDF for {vendor_name}"
+                        f"✓ SUCCESS: Generated summary reminder PDF for {vendor_name}"
                     )
 
-            messagebox.showinfo(
-                "Success",
+            messagebox.showinfo("✅ Success",
                 f"Generated {len(pdf_paths)} summary PDF(s) in:\n{output_folder}",
                 parent=self,
             )
             return pdf_paths
 
         except Exception as e:
-            self.log(f"ERROR: Failed to generate summary PDFs: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to generate PDFs:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to generate summary PDFs: {e}")
+            messagebox.showerror("❌ Error", f"Failed to generate PDFs:\n{str(e)}", parent=self
             )
             return {}
 
@@ -13846,7 +13846,7 @@ class EmailReminderWindow(tk.Toplevel):
             return True
 
         except Exception as e:
-            self.log(f"ERROR: Failed to create summary PDF: {e}")
+            self.log(f"✗ ERROR: Failed to create summary PDF: {e}")
             import traceback
 
             traceback.print_exc()
@@ -13872,19 +13872,17 @@ class EmailReminderWindow(tk.Toplevel):
                     if vendor_name not in pdf_paths:
                         pdf_paths[vendor_name] = []
                     pdf_paths[vendor_name].append(pdf_path)
-                    self.log(f"SUCCESS: Generated reminder PDF for PO {po_num}")
+                    self.log(f"✓ SUCCESS: Generated reminder PDF for PO {po_num}")
 
-            messagebox.showinfo(
-                "Success",
+            messagebox.showinfo("✅ Success",
                 f"Generated {sum(len(pdfs) for pdfs in pdf_paths.values())} reminder PDF(s) in:\n{output_folder}",
                 parent=self,
             )
             return pdf_paths
 
         except Exception as e:
-            self.log(f"ERROR: Failed to generate reminder PDFs: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to generate PDFs:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to generate reminder PDFs: {e}")
+            messagebox.showerror("❌ Error", f"Failed to generate PDFs:\n{str(e)}", parent=self
             )
             return {}
 
@@ -14073,7 +14071,7 @@ class EmailReminderWindow(tk.Toplevel):
             return True
 
         except Exception as e:
-            self.log(f"ERROR: Failed to create reminder PDF: {e}")
+            self.log(f"✗ ERROR: Failed to create reminder PDF: {e}")
             import traceback
 
             traceback.print_exc()
@@ -14118,7 +14116,7 @@ class EmailReminderWindow(tk.Toplevel):
                         )
                         if success:
                             sent_count += 1
-                            self.log(f"SUCCESS: Sent reminder email to {vendor_name}")
+                            self.log(f"✓ SUCCESS: Sent reminder email to {vendor_name}")
                         else:
                             failed_count += 1
                             failed_details.append(f"{vendor_name}: {message}")
@@ -14129,7 +14127,7 @@ class EmailReminderWindow(tk.Toplevel):
                         )
                         if success:
                             sent_count += 1
-                            self.log(f"SUCCESS: Sent reminder email to {vendor_name}")
+                            self.log(f"✓ SUCCESS: Sent reminder email to {vendor_name}")
                         else:
                             failed_count += 1
                             failed_details.append(f"{vendor_name}: {message}")
@@ -14137,7 +14135,7 @@ class EmailReminderWindow(tk.Toplevel):
                 except Exception as e:
                     failed_count += 1
                     failed_details.append(f"{vendor_name}: {str(e)}")
-                    self.log(f"ERROR: Failed to send reminder to {vendor_name}: {e}")
+                    self.log(f"✗ ERROR: Failed to send reminder to {vendor_name}: {e}")
 
             # Show summary
             summary = f"Sent {sent_count} reminder email(s), Failed {failed_count}"
@@ -14145,12 +14143,11 @@ class EmailReminderWindow(tk.Toplevel):
                 summary += "\n\nFailures:\n" + "\n".join(failed_details)
 
             messagebox.showinfo("Email Results", summary, parent=self)
-            self.log(f"INFO: Reminder email batch complete: {summary}")
+            self.log(f"ℹ️ INFO: Reminder email batch complete: {summary}")
 
         except Exception as e:
-            self.log(f"ERROR: Failed to send reminder emails: {e}")
-            messagebox.showerror(
-                "Error", f"Failed to send emails:\n{str(e)}", parent=self
+            self.log(f"✗ ERROR: Failed to send reminder emails: {e}")
+            messagebox.showerror("❌ Error", f"Failed to send emails:\n{str(e)}", parent=self
             )
 
 
@@ -14229,11 +14226,11 @@ class EmailConfirmationScanner:
         """Update the keyword filters"""
         if include_keywords is not None:
             self.confirmation_keywords = include_keywords
-            self.log(f"INFO: Updated include keywords: {len(include_keywords)} terms")
+            self.log(f"ℹ️ INFO: Updated include keywords: {len(include_keywords)} terms")
 
         if exclude_keywords is not None:
             self.exclude_keywords = exclude_keywords
-            self.log(f"INFO: Updated exclude keywords: {len(exclude_keywords)} terms")
+            self.log(f"ℹ️ INFO: Updated exclude keywords: {len(exclude_keywords)} terms")
 
     def _is_confirmation_email_filtered(self, text):
         """
@@ -14278,9 +14275,9 @@ class EmailConfirmationScanner:
             )
 
         try:
-            self.log(f"INFO: Scanning Outlook emails from last {days_back} days...")
+            self.log(f"ℹ️ INFO: Scanning Outlook emails from last {days_back} days...")
             self.log(
-                f"INFO: Using {len(self.confirmation_keywords)} include keywords, {len(self.exclude_keywords)} exclude keywords"
+                f"ℹ️ INFO: Using {len(self.confirmation_keywords)} include keywords, {len(self.exclude_keywords)} exclude keywords"
             )
 
             outlook = win32com.client.Dispatch("outlook.application")
@@ -14331,7 +14328,7 @@ class EmailConfirmationScanner:
 
                         if po_numbers:
                             self.log(
-                                f"INFO: Found confirmation for PO(s): {', '.join(po_numbers)}"
+                                f"ℹ️ INFO: Found confirmation for PO(s): {', '.join(po_numbers)}"
                             )
 
                             # Process attachments
@@ -14382,14 +14379,14 @@ class EmailConfirmationScanner:
                                                     )
 
                                                     self.log(
-                                                        f"SUCCESS: Saved confirmation for PO {po_num}: {safe_filename}"
+                                                        f"✓ SUCCESS: Saved confirmation for PO {po_num}: {safe_filename}"
                                                     )
                                                 else:
                                                     results["unmatched_pos"].append(
                                                         po_num
                                                     )
                                                     self.log(
-                                                        f"WARNING: PO {po_num} not found in database"
+                                                        f"⚠ WARNING: PO {po_num} not found in database"
                                                     )
 
                                             # Clean up temp file if still exists
@@ -14398,7 +14395,7 @@ class EmailConfirmationScanner:
 
                                         except Exception as e:
                                             self.log(
-                                                f"ERROR: Failed to process PDF {filename}: {e}"
+                                                f"✗ ERROR: Failed to process PDF {filename}: {e}"
                                             )
                                             if os.path.exists(temp_path):
                                                 os.remove(temp_path)
@@ -14413,17 +14410,17 @@ class EmailConfirmationScanner:
                 except Exception as e:
                     error_msg = f"Error processing email: {str(e)}"
                     results["errors"].append(error_msg)
-                    self.log(f"ERROR: {error_msg}")
+                    self.log(f"✗ ERROR: {error_msg}")
 
             self.log(
-                f"SUCCESS: Scanned {results['scanned']} emails, "
+                f"✓ SUCCESS: Scanned {results['scanned']} emails, "
                 f"Found {results['confirmations_found']} confirmations, saved {results['pdfs_saved']} PDFs, "
                 f"Filtered out {results['filtered_out']} non-confirmations"
             )
             return results
 
         except Exception as e:
-            self.log(f"ERROR: Outlook scan failed: {str(e)}")
+            self.log(f"✗ ERROR: Outlook scan failed: {str(e)}")
             raise
 
     def _is_outlook_confirmation_email(self, message):
@@ -14470,10 +14467,10 @@ class EmailConfirmationScanner:
         """
         try:
             self.log(
-                f"INFO: Connecting to email server {email_config['imap_server']}..."
+                f"ℹ️ INFO: Connecting to email server {email_config['imap_server']}..."
             )
             self.log(
-                f"INFO: Using {len(self.confirmation_keywords)} include keywords, {len(self.exclude_keywords)} exclude keywords"
+                f"ℹ️ INFO: Using {len(self.confirmation_keywords)} include keywords, {len(self.exclude_keywords)} exclude keywords"
             )
 
             # Connect to IMAP server
@@ -14493,7 +14490,7 @@ class EmailConfirmationScanner:
             total_emails = len(email_ids)
 
             self.log(
-                f"INFO: Found {total_emails} emails to scan from last {days_back} days"
+                f"ℹ️ INFO: Found {total_emails} emails to scan from last {days_back} days"
             )
 
             results = {
@@ -14524,7 +14521,7 @@ class EmailConfirmationScanner:
 
                         if po_numbers:
                             self.log(
-                                f"INFO: Found confirmation for PO(s): {', '.join(po_numbers)}"
+                                f"ℹ️ INFO: Found confirmation for PO(s): {', '.join(po_numbers)}"
                             )
 
                             # Process attachments
@@ -14565,12 +14562,12 @@ class EmailConfirmationScanner:
                                             )
 
                                             self.log(
-                                                f"SUCCESS: Saved confirmation for PO {po_num}: {safe_filename}"
+                                                f"✓ SUCCESS: Saved confirmation for PO {po_num}: {safe_filename}"
                                             )
                                         else:
                                             results["unmatched_pos"].append(po_num)
                                             self.log(
-                                                f"WARNING: PO {po_num} not found in database"
+                                                f"⚠ WARNING: PO {po_num} not found in database"
                                             )
                     else:
                         results["filtered_out"] += 1
@@ -14582,20 +14579,20 @@ class EmailConfirmationScanner:
                 except Exception as e:
                     error_msg = f"Error processing email {email_id}: {str(e)}"
                     results["errors"].append(error_msg)
-                    self.log(f"ERROR: {error_msg}")
+                    self.log(f"✗ ERROR: {error_msg}")
 
             mail.close()
             mail.logout()
 
             self.log(
-                f"SUCCESS: Email scan complete. "
+                f"✓ SUCCESS: Email scan complete. "
                 f"Found {results['confirmations_found']} confirmations, saved {results['pdfs_saved']} PDFs, "
                 f"Filtered out {results['filtered_out']} non-confirmations"
             )
             return results
 
         except Exception as e:
-            self.log(f"ERROR: Email scan failed: {str(e)}")
+            self.log(f"✗ ERROR: Email scan failed: {str(e)}")
             raise
 
     def _is_confirmation_email(self, email_message):
@@ -14649,7 +14646,7 @@ class EmailConfirmationScanner:
                 po_numbers.update(matches)
 
         except Exception as e:
-            self.log(f"WARNING: Could not extract text from PDF: {str(e)}")
+            self.log(f"⚠ WARNING: Could not extract text from PDF: {str(e)}")
 
         return list(po_numbers)
 
@@ -14983,11 +14980,10 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
                 f"{len(exclude_keywords)} exclude keywords.",
                 parent=self,
             )
-            self.log(f"INFO: Saved email scanner filters")
+            self.log(f"ℹ️ INFO: Saved email scanner filters")
 
         except Exception as e:
-            messagebox.showerror(
-                "Error", f"Failed to save filters: {str(e)}", parent=self
+            messagebox.showerror("❌ Error", f"Failed to save filters: {str(e)}", parent=self
             )
 
     def reset_filters(self):
@@ -15014,7 +15010,7 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
                 default_scanner.confirmation_keywords, default_scanner.exclude_keywords
             )
 
-            self.log("INFO: Reset email scanner filters to defaults")
+            self.log("ℹ️ INFO: Reset email scanner filters to defaults")
 
     def show_filter_help(self):
         """Show help information about keyword filters"""
@@ -15052,10 +15048,9 @@ EXAMPLES:
         }
 
         self.dm.save_config("email_scanner_config", config)
-        messagebox.showinfo(
-            "Success", "Email scanner configuration saved.", parent=self
+        messagebox.showinfo("✅ Success", "Email scanner configuration saved.", parent=self
         )
-        self.log("INFO: Email scanner configuration saved")
+        self.log("ℹ️ INFO: Email scanner configuration saved")
 
     def load_config(self):
         """Load saved email configuration"""
@@ -15093,8 +15088,7 @@ EXAMPLES:
             self.scanner.update_keywords(include_keywords, exclude_keywords)
 
         except Exception as e:
-            messagebox.showerror(
-                "Error", f"Failed to parse keywords: {str(e)}", parent=self
+            messagebox.showerror("❌ Error", f"Failed to parse keywords: {str(e)}", parent=self
             )
             return
 
@@ -15191,7 +15185,7 @@ Errors: {len(results['errors'])}
                 )
 
             except Exception as e:
-                error_msg = f"ERROR: Email scan failed: {str(e)}"
+                error_msg = f"✗ ERROR: Email scan failed: {str(e)}"
                 self.after(
                     0,
                     lambda error_msg=error_msg: self.results_text.insert(
