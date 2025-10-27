@@ -39,6 +39,24 @@ from openpyxl import Workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
 
+# Import improved signature editor
+from improved_signature_editor import ImprovedSignatureEditor
+
+
+
+# Application Constants
+DB_FILE = os.path.join(os.path.expanduser("~"), "AppData", "local_operations.db")
+APP_DATA_FOLDER = os.path.join(os.path.expanduser("~"), "AppData")
+ORDERS_FOLDER = os.path.join(APP_DATA_FOLDER, "Orders")
+CONFIRMATIONS_FOLDER = os.path.join(APP_DATA_FOLDER, "Confirmations")
+
+# UI Constants
+DEFAULT_WINDOW_WIDTH = 1800
+DEFAULT_WINDOW_HEIGHT = 800
+DASHBOARD_ICON_SIZE = 24
+FILTER_PANEL_WIDTH = 300
+MAX_RETRIES = 3
+DEFAULT_TIMEOUT = 30
 
 # --- Utility Functions ---
 class CaseInsensitiveDict(dict):
@@ -601,53 +619,46 @@ class DatabaseManager:
                 "ALTER TABLE requisitions ADD COLUMN source TEXT DEFAULT 'MANUAL'",
                 commit=True,
             )
-        except:
-            pass
-
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
         try:
             self.execute_query(
                 "ALTER TABLE requisitions ADD COLUMN mrp_run_id INTEGER", commit=True
             )
-        except:
-            pass
-
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
         try:
             self.execute_query(
                 "ALTER TABLE requisitions ADD COLUMN priority TEXT DEFAULT 'NORMAL'",
                 commit=True,
             )
-        except:
-            pass
-
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
         try:
             self.execute_query(
                 "ALTER TABLE requisitions ADD COLUMN approval_status TEXT DEFAULT 'PENDING'",
                 commit=True,
             )
-        except:
-            pass
-
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
         try:
             self.execute_query(
                 "ALTER TABLE requisitions ADD COLUMN approved_by TEXT", commit=True
             )
-        except:
-            pass
-
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
         try:
             self.execute_query(
                 "ALTER TABLE requisitions ADD COLUMN approved_date TEXT", commit=True
             )
-        except:
-            pass
-
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
         try:
             self.execute_query(
                 "ALTER TABLE requisitions ADD COLUMN notes TEXT", commit=True
             )
-        except:
-            pass
-
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
         print("MRP tables created successfully")
 
     def add_missing_columns(self):
@@ -668,21 +679,21 @@ class DatabaseManager:
                 try:
                     cursor.execute("ALTER TABLE vendors ADD COLUMN delivery_terms TEXT")
                     conn.commit()
-                    print("✓ Added delivery_terms column to vendors table")
+                    print(" Added delivery_terms column to vendors table")
                 except Exception as col_error:
-                    print(f"✗ Could not add delivery_terms: {col_error}")
+                    print(f" Could not add delivery_terms: {col_error}")
             else:
-                print("✓ delivery_terms column already exists")
+                print(" delivery_terms column already exists")
 
             if "payment_terms" not in vendor_columns:
                 try:
                     cursor.execute("ALTER TABLE vendors ADD COLUMN payment_terms TEXT")
                     conn.commit()
-                    print("✓ Added payment_terms column to vendors table")
+                    print(" Added payment_terms column to vendors table")
                 except Exception as col_error:
-                    print(f"✗ Could not add payment_terms: {col_error}")
+                    print(f" Could not add payment_terms: {col_error}")
             else:
-                print("✓ payment_terms column already exists")
+                print(" payment_terms column already exists")
 
             # Add the new secondary transport days column to vendors table if missing
             if "transport_days_secondary" not in vendor_columns:
@@ -691,11 +702,11 @@ class DatabaseManager:
                         "ALTER TABLE vendors ADD COLUMN transport_days_secondary INTEGER DEFAULT 0"
                     )
                     conn.commit()
-                    print("✓ Added transport_days_secondary column to vendors table")
+                    print(" Added transport_days_secondary column to vendors table")
                 except Exception as col_error:
-                    print(f"✗ Could not add transport_days_secondary: {col_error}")
+                    print(f" Could not add transport_days_secondary: {col_error}")
             else:
-                print("✓ transport_days_secondary column already exists")
+                print(" transport_days_secondary column already exists")
 
             # Check open_orders table columns
             cursor.execute("PRAGMA table_info(open_orders)")
@@ -708,11 +719,11 @@ class DatabaseManager:
                         "ALTER TABLE open_orders ADD COLUMN exception_message TEXT"
                     )
                     conn.commit()
-                    print("✓ Added exception_message column to open_orders table")
+                    print(" Added exception_message column to open_orders table")
                 except Exception as col_error:
-                    print(f"✗ Could not add exception_message: {col_error}")
+                    print(f" Could not add exception_message: {col_error}")
             else:
-                print("✓ exception_message column already exists")
+                print(" exception_message column already exists")
 
             if "rescheduling_date" not in order_columns:
                 try:
@@ -720,11 +731,11 @@ class DatabaseManager:
                         "ALTER TABLE open_orders ADD COLUMN rescheduling_date TEXT"
                     )
                     conn.commit()
-                    print("✓ Added rescheduling_date column to open_orders table")
+                    print(" Added rescheduling_date column to open_orders table")
                 except Exception as col_error:
-                    print(f"✗ Could not add rescheduling_date: {col_error}")
+                    print(f" Could not add rescheduling_date: {col_error}")
             else:
-                print("✓ rescheduling_date column already exists")
+                print(" rescheduling_date column already exists")
 
             if "price_per_unit" not in order_columns:
                 try:
@@ -732,11 +743,11 @@ class DatabaseManager:
                         "ALTER TABLE open_orders ADD COLUMN price_per_unit INTEGER DEFAULT 1"
                     )
                     conn.commit()
-                    print("✓ Added price_per_unit column to open_orders table")
+                    print(" Added price_per_unit column to open_orders table")
                 except Exception as col_error:
-                    print(f"✗ Could not add price_per_unit: {col_error}")
+                    print(f" Could not add price_per_unit: {col_error}")
             else:
-                print("✓ price_per_unit column already exists")
+                print(" price_per_unit column already exists")
 
             # NEW: Check requisitions table columns for lead_time_days
             cursor.execute("PRAGMA table_info(requisitions)")
@@ -749,11 +760,11 @@ class DatabaseManager:
                         "ALTER TABLE requisitions ADD COLUMN lead_time_days INTEGER DEFAULT 0"
                     )
                     conn.commit()
-                    print("✓ Added lead_time_days column to requisitions table")
+                    print(" Added lead_time_days column to requisitions table")
                 except Exception as col_error:
-                    print(f"✗ Could not add lead_time_days: {col_error}")
+                    print(f" Could not add lead_time_days: {col_error}")
             else:
-                print("✓ lead_time_days column already exists in requisitions")
+                print(" lead_time_days column already exists in requisitions")
 
             conn.close()
             print("Database migration complete!")
@@ -768,11 +779,11 @@ class DatabaseManager:
                         "ALTER TABLE materials ADD COLUMN net_price REAL DEFAULT 0"
                     )
                     conn.commit()
-                    print("✓ Added net_price column to materials table")
+                    print(" Added net_price column to materials table")
                 except Exception as col_error:
-                    print(f"✗ Could not add net_price: {col_error}")
+                    print(f" Could not add net_price: {col_error}")
             else:
-                print("✓ net_price column already exists in materials")
+                print(" net_price column already exists in materials")
 
             if "price_per_unit" not in material_columns:
                 try:
@@ -780,11 +791,11 @@ class DatabaseManager:
                         "ALTER TABLE materials ADD COLUMN price_per_unit INTEGER DEFAULT 1"
                     )
                     conn.commit()
-                    print("✓ Added price_per_unit column to materials table")
+                    print(" Added price_per_unit column to materials table")
                 except Exception as col_error:
-                    print(f"✗ Could not add price_per_unit: {col_error}")
+                    print(f" Could not add price_per_unit: {col_error}")
             else:
-                print("✓ price_per_unit column already exists in materials")
+                print(" price_per_unit column already exists in materials")
 
         except Exception as e:
             print(f"Error in add_missing_columns: {type(e).__name__}: {e}")
@@ -1780,7 +1791,9 @@ class LocalDataManager:
 
         df = pd.DataFrame(all_data)
 
-        # Data preparation with enhanced validation
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 1: DATA PREPARATION & VALIDATION
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
         df["requested_del_date_dt"] = pd.to_datetime(
             df["requested_del_date"], format="%d.%m.%Y", errors="coerce"
         )
@@ -1790,12 +1803,8 @@ class LocalDataManager:
         df["conf_delivery_date_dt"] = pd.to_datetime(
             df["conf_delivery_date"], format="%d.%m.%Y", errors="coerce"
         )
-        df["total_amount"] = pd.to_numeric(df["total_amount"], errors="coerce").fillna(
-            0
-        )
-        df["transport_days"] = pd.to_numeric(
-            df["transport_days"], errors="coerce"
-        ).fillna(0)
+        df["total_amount"] = pd.to_numeric(df["total_amount"], errors="coerce").fillna(0)
+        df["transport_days"] = pd.to_numeric(df["transport_days"], errors="coerce").fillna(0)
         df["transport_days_secondary"] = pd.to_numeric(
             df["transport_days_secondary"], errors="coerce"
         ).fillna(0)
@@ -1803,13 +1812,15 @@ class LocalDataManager:
         if "exception_message" not in df.columns:
             df["exception_message"] = ""
 
-        # Check if confirmation date is present (not null and not empty string)
+        # Check date presence
         df["has_conf_date"] = df["conf_delivery_date"].notna() & (
             df["conf_delivery_date"].str.strip() != ""
         )
         df["has_reschedule_date"] = df["rescheduling_date_dt"].notna()
 
-        # NEW LOGIC: Determine reschedule status based on confirmation date if present
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 2: DETERMINE RESCHEDULE STATUS
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
         df["reschedule_status"] = ""
 
         for idx, row in df.iterrows():
@@ -1818,20 +1829,14 @@ class LocalDataManager:
 
                 # Calculate NEW ETD from reschedule date (which is ETA)
                 if transport_days > 0:
-                    new_etd = subtract_working_days(
-                        row["rescheduling_date_dt"], transport_days
-                    )
+                    new_etd = subtract_working_days(row["rescheduling_date_dt"], transport_days)
                 else:
                     new_etd = row["rescheduling_date_dt"]
 
-                # Get ORIGINAL ETD (already in ETD format - no conversion needed)
+                # Get ORIGINAL ETD
                 original_etd = None
-
-                # Prefer confirmed date if available (already ETD)
                 if pd.notna(row["conf_delivery_date_dt"]):
                     original_etd = row["conf_delivery_date_dt"]
-
-                # Otherwise use requested date (already ETD)
                 elif pd.notna(row["requested_del_date_dt"]):
                     original_etd = row["requested_del_date_dt"]
 
@@ -1843,172 +1848,90 @@ class LocalDataManager:
                         df.at[idx, "reschedule_status"] = "Reschedule Out"
                     else:
                         df.at[idx, "reschedule_status"] = "No Change"
+            else:
+                # Orders WITHOUT reschedule dates
+                if row["has_conf_date"]:
+                    df.at[idx, "reschedule_status"] = "No Reschedule Date"
+                else:
+                    df.at[idx, "reschedule_status"] = "Unconfirmed"
 
-        # Get filter settings
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 3: GET FILTER SETTINGS
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
         include_all_open = filters.get(
             "include_all_open_orders", filters.get("include_unconfirmed_orders", False)
         )
         use_pdf_format = filters.get("use_pdf_format", False)
 
-        # Mark orders without reschedule dates
-        if include_all_open:
-            mask_no_status = df["reschedule_status"] == ""
-            df.loc[mask_no_status, "reschedule_status"] = "No Reschedule Date"
-
-
-        # Apply supplier filters first
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 4: APPLY SUPPLIER FILTERS (applies to all orders)
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
         if filters.get("suppliers"):
             df = df[df["Name"].isin(filters["suppliers"])]
 
-        # Split by reschedule status for date filtering
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 5: SEPARATE INTO CATEGORIES
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
         df_in = df[df["reschedule_status"] == "Reschedule In"].copy()
         df_out = df[df["reschedule_status"] == "Reschedule Out"].copy()
-        df_other = df[~df.index.isin(df_in.index) & ~df.index.isin(df_out.index)]
+        df_no_change = df[df["reschedule_status"] == "No Change"].copy()
+        df_no_reschedule = df[df["reschedule_status"] == "No Reschedule Date"].copy()
+        df_unconfirmed = df[df["reschedule_status"] == "Unconfirmed"].copy()
 
-        # Apply date filters to determine which orders would be filtered OUT
-        orders_to_filter_out = set()
-
-        # Track Reschedule In orders that don't match date criteria
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 6: APPLY CATEGORY-SPECIFIC FILTERS
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        
+        # Filter Reschedule IN orders by date range
         if filters.get("reschedule_in_req_date_start"):
             start_date = pd.to_datetime(filters["reschedule_in_req_date_start"])
-            filtered_out = df_in[df_in["requested_del_date_dt"] < start_date]
-            orders_to_filter_out.update(filtered_out.index)
+            df_in = df_in[df_in["requested_del_date_dt"] >= start_date]
         if filters.get("reschedule_in_req_date_end"):
             end_date = pd.to_datetime(filters["reschedule_in_req_date_end"])
-            filtered_out = df_in[df_in["requested_del_date_dt"] > end_date]
-            orders_to_filter_out.update(filtered_out.index)
+            df_in = df_in[df_in["requested_del_date_dt"] <= end_date]
 
-        # Track Reschedule Out orders that don't match date/value criteria
+        # Filter Reschedule OUT orders by date range AND value
         if filters.get("reschedule_out_req_date_start"):
             start_date = pd.to_datetime(filters["reschedule_out_req_date_start"])
-            filtered_out = df_out[df_out["requested_del_date_dt"] < start_date]
-            orders_to_filter_out.update(filtered_out.index)
+            df_out = df_out[df_out["requested_del_date_dt"] >= start_date]
         if filters.get("reschedule_out_req_date_end"):
             end_date = pd.to_datetime(filters["reschedule_out_req_date_end"])
-            filtered_out = df_out[df_out["requested_del_date_dt"] > end_date]
-            orders_to_filter_out.update(filtered_out.index)
+            df_out = df_out[df_out["requested_del_date_dt"] <= end_date]
         if filters.get("reschedule_out_value_min") is not None:
-            filtered_out = df_out[
-                df_out["total_amount"] < filters["reschedule_out_value_min"]
-            ]
-            orders_to_filter_out.update(filtered_out.index)
+            df_out = df_out[df_out["total_amount"] >= filters["reschedule_out_value_min"]]
         if filters.get("reschedule_out_value_max") is not None:
-            filtered_out = df_out[
-                df_out["total_amount"] > filters["reschedule_out_value_max"]
-            ]
-            orders_to_filter_out.update(filtered_out.index)
+            df_out = df_out[df_out["total_amount"] <= filters["reschedule_out_value_max"]]
 
-        # CONDITIONAL CLEARING LOGIC
-        # MODIFIED: Clear reschedule dates for ALL open orders that are filtered out
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 7: COMBINE FINAL DATAFRAME BASED ON INCLUDE_ALL_OPEN SETTING
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
         if include_all_open:
-            # Clear reschedule dates for any order that would be filtered out by the criteria
-            mask_clear_reschedule = df["has_reschedule_date"] & df.index.isin(
-                orders_to_filter_out
-            )
-
-            df.loc[mask_clear_reschedule, "rescheduling_date"] = None
-            df.loc[mask_clear_reschedule, "rescheduling_date_dt"] = pd.NaT
-            df.loc[mask_clear_reschedule, "exception_message"] = None
-
-        df["exception_message"] = df["exception_message"].fillna("").astype(str)
-
-        # Recalculate reschedule status after potential clearing
-        df["reschedule_status"] = ""
-
-        for idx, row in df.iterrows():
-            if pd.notna(row["rescheduling_date_dt"]):
-                transport_days = int(row.get("transport_days", 0) or 0)
-
-                # Calculate NEW ETD from reschedule date (which is ETA)
-                if transport_days > 0:
-                    new_etd = subtract_working_days(
-                        row["rescheduling_date_dt"], transport_days
-                    )
-                else:
-                    new_etd = row["rescheduling_date_dt"]
-
-                # Get ORIGINAL ETD (already in ETD format - no conversion needed)
-                original_etd = None
-
-                # Prefer confirmed date if available (already ETD)
-                if pd.notna(row["conf_delivery_date_dt"]):
-                    original_etd = row["conf_delivery_date_dt"]
-
-                # Otherwise use requested date (already ETD)
-                elif pd.notna(row["requested_del_date_dt"]):
-                    original_etd = row["requested_del_date_dt"]
-
-                # Compare ETDs to determine status
-                if original_etd:
-                    if new_etd < original_etd:
-                        df.at[idx, "reschedule_status"] = "Reschedule In"
-                    elif new_etd > original_etd:
-                        df.at[idx, "reschedule_status"] = "Reschedule Out"
-                    else:
-                        df.at[idx, "reschedule_status"] = "No Change"
-
-        if include_all_open:
-            mask_unconfirmed = (~df["has_conf_date"]) & (
-                ~df["rescheduling_date_dt"].notna()
-            )
-            df.loc[mask_unconfirmed, "reschedule_status"] = "Unconfirmed"
-
-        # Now apply the actual filtering for the final output
-        df_in_final = df[df["reschedule_status"] == "Reschedule In"].copy()
-        df_out_final = df[df["reschedule_status"] == "Reschedule Out"].copy()
-        # Include both "Unconfirmed" and "No Reschedule Date" in unconfirmed category
-        df_unconfirmed_final = df[
-            (df["reschedule_status"] == "Unconfirmed") | 
-            (df["reschedule_status"] == "No Reschedule Date")
-        ].copy()
-
-        # Apply date filters to final reschedule orders
-        if filters.get("reschedule_in_req_date_start"):
-            start_date = pd.to_datetime(filters["reschedule_in_req_date_start"])
-            df_in_final = df_in_final[
-                df_in_final["requested_del_date_dt"] >= start_date
-            ]
-        if filters.get("reschedule_in_req_date_end"):
-            end_date = pd.to_datetime(filters["reschedule_in_req_date_end"])
-            df_in_final = df_in_final[df_in_final["requested_del_date_dt"] <= end_date]
-        if filters.get("reschedule_out_req_date_start"):
-            start_date = pd.to_datetime(filters["reschedule_out_req_date_start"])
-            df_out_final = df_out_final[
-                df_out_final["requested_del_date_dt"] >= start_date
-            ]
-        if filters.get("reschedule_out_req_date_end"):
-            end_date = pd.to_datetime(filters["reschedule_out_req_date_end"])
-            df_out_final = df_out_final[
-                df_out_final["requested_del_date_dt"] <= end_date
-            ]
-
-        # Combine final data based on checkbox setting
-        if include_all_open:
+            # Include ALL categories
             df_final = pd.concat(
-                [df_in_final, df_out_final, df_unconfirmed_final], ignore_index=True
+                [df_in, df_out, df_no_change, df_no_reschedule, df_unconfirmed], 
+                ignore_index=True
             )
         else:
-            df_final = pd.concat([df_in_final, df_out_final], ignore_index=True)
+            # Only include reschedule IN and OUT
+            df_final = pd.concat([df_in, df_out], ignore_index=True)
 
         if df_final.empty:
             return 0
 
-        # APPLY MANUAL RESCHEDULE DATE OVERRIDE (if specified)
-        # NOTE: Manual date is the DESIRED ETD - use it directly
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 8: APPLY MANUAL RESCHEDULE DATE OVERRIDE (if specified)
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
         manual_date = filters.get("manual_reschedule_date")
         if manual_date and not df_final.empty:
             manual_date_str = manual_date.strftime("%d.%m.%Y")
 
-            # Set the manual date directly as the ETD (no transport days added or subtracted)
-            # Add a flag to prevent further ETD calculations
+            # Set the manual date directly as the ETD
             for idx, row in df_final.iterrows():
-                # Manual date is ETD, use it directly
                 df_final.at[idx, "rescheduling_date_dt"] = manual_date
                 df_final.at[idx, "rescheduling_date"] = manual_date_str
-                df_final.at[idx, "manual_etd_override"] = True  # NEW FLAG
+                df_final.at[idx, "manual_etd_override"] = True
 
-            # RECALCULATE RESCHEDULE STATUS by comparing manual ETD to original ETD
-            # Original ETD = confirmed/requested date - transport days
+            # RECALCULATE RESCHEDULE STATUS with manual ETD
             df_final["reschedule_status"] = ""
 
             for idx, row in df_final.iterrows():
@@ -2017,20 +1940,14 @@ class LocalDataManager:
                 # Calculate original ETD for comparison
                 original_etd = None
                 if pd.notna(row.get("conf_delivery_date_dt")):
-                    # Use confirmed date to calculate original ETD
                     original_etd = (
-                        subtract_working_days(
-                            row["conf_delivery_date_dt"], transport_days
-                        )
+                        subtract_working_days(row["conf_delivery_date_dt"], transport_days)
                         if transport_days > 0
                         else row["conf_delivery_date_dt"]
                     )
                 elif pd.notna(row.get("requested_del_date_dt")):
-                    # Use requested date to calculate original ETD
                     original_etd = (
-                        subtract_working_days(
-                            row["requested_del_date_dt"], transport_days
-                        )
+                        subtract_working_days(row["requested_del_date_dt"], transport_days)
                         if transport_days > 0
                         else row["requested_del_date_dt"]
                     )
@@ -2044,10 +1961,8 @@ class LocalDataManager:
                     else:
                         df_final.at[idx, "reschedule_status"] = "No Change"
 
-            # Add a note to exception_message
-            df_final["exception_message"] = (
-                df_final["exception_message"].fillna("").astype(str)
-            )
+            # Add note to exception_message
+            df_final["exception_message"] = df_final["exception_message"].fillna("").astype(str)
             override_note = f" [Manual override: ETD {manual_date_str}]"
 
             mask_needs_note = ~df_final["exception_message"].str.contains(
@@ -2057,10 +1972,14 @@ class LocalDataManager:
                 df_final.loc[mask_needs_note, "exception_message"] + override_note
             )
         else:
-            # No manual override, so flag is False
+            # No manual override
             df_final["manual_etd_override"] = False
 
-        # Create files based on format selection
+        df_final["exception_message"] = df_final["exception_message"].fillna("").astype(str)
+
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
+        # STEP 9: CREATE OUTPUT FILES
+        # ÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚ÂÃƒÂ¢Ã¢â‚¬Â¢Ã‚Â
         supplier_groups = df_final.groupby("Name")
         files_created_count = 0
         file_extension = ".pdf" if use_pdf_format else ".xlsx"
@@ -2080,46 +1999,50 @@ class LocalDataManager:
                         temp_pdf = os.path.join(
                             RESCHEDULE_OUTPUT_FOLDER, f"temp_{safe_name}.pdf"
                         )
-                        if self._create_reschedule_pdf(
-                            temp_pdf, supplier_name, lines_df
-                        ):
+                        if self._create_reschedule_pdf(temp_pdf, supplier_name, lines_df):
                             with open(temp_pdf, "rb") as f:
-                                zf.writestr(f"{safe_name}_reschedule.pdf", f.read())
+                                zf.writestr(f"{safe_name}.pdf", f.read())
                             os.remove(temp_pdf)
                             files_created_count += 1
                     else:
                         # Create Excel
-                        excel_buffer = self._create_reschedule_excel(
-                            supplier_name, lines_df
+                        temp_excel = os.path.join(
+                            RESCHEDULE_OUTPUT_FOLDER, f"temp_{safe_name}.xlsx"
                         )
-                        if excel_buffer:
-                            zf.writestr(
-                                f"{safe_name}_reschedule.xlsx", excel_buffer.getvalue()
-                            )
-                            files_created_count += 1
+                        self._create_reschedule_excel(temp_excel, supplier_name, lines_df)
+                        with open(temp_excel, "rb") as f:
+                            zf.writestr(f"{safe_name}.xlsx", f.read())
+                        os.remove(temp_excel)
+                        files_created_count += 1
+
+            messagebox.showinfo(
+                "Success",
+                f"Created ZIP file with {files_created_count} reschedule files\n{zip_path}",
+            )
         else:
             # Single supplier - create single file
             for supplier_name, lines_df in supplier_groups:
                 safe_name = re.sub(r'[\\/*?:"<>|]', "_", supplier_name)
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 file_path = os.path.join(
-                    RESCHEDULE_OUTPUT_FOLDER, f"{safe_name}_reschedule{file_extension}"
+                    RESCHEDULE_OUTPUT_FOLDER, f"{safe_name}_Reschedule_{timestamp}{file_extension}"
                 )
 
                 if use_pdf_format:
                     if self._create_reschedule_pdf(file_path, supplier_name, lines_df):
                         files_created_count += 1
                 else:
-                    excel_buffer = self._create_reschedule_excel(
-                        supplier_name, lines_df
-                    )
-                    if excel_buffer:
-                        with open(file_path, "wb") as f:
-                            f.write(excel_buffer.getvalue())
-                        files_created_count += 1
+                    self._create_reschedule_excel(file_path, supplier_name, lines_df)
+                    files_created_count += 1
+
+            if files_created_count > 0:
+                messagebox.showinfo(
+                    "Success", f"Created reschedule file\n{file_path}"
+                )
 
         return files_created_count
 
-    def _create_reschedule_excel(self, supplier_name, lines_df):
+    def _create_reschedule_excel(self, file_path, supplier_name, lines_df):
         """Create Excel file for reschedule data"""
         try:
             group_df = lines_df.copy()
@@ -2221,9 +2144,8 @@ class LocalDataManager:
                 inplace=True,
             )
 
-            # Create Excel file in memory
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+            # Create Excel file and write to file_path
+            with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
                 output_df.to_excel(writer, sheet_name="Reschedule", index=False)
 
                 # Get the worksheet to apply formatting
@@ -2237,8 +2159,8 @@ class LocalDataManager:
                         try:
                             if len(str(cell.value)) > max_length:
                                 max_length = len(str(cell.value))
-                        except:
-                            pass
+                        except Exception:  # TODO: Add proper error handling
+                            pass  # TODO: Add proper error handling
                     adjusted_width = min(max_length + 2, 50)
                     worksheet.column_dimensions[column_letter].width = adjusted_width
 
@@ -2258,12 +2180,11 @@ class LocalDataManager:
                     table.tableStyleInfo = style
                     worksheet.add_table(table)
 
-            excel_buffer.seek(0)
-            return excel_buffer
+            return True
 
         except Exception as e:
             print(f"Error creating Excel for {supplier_name}: {e}")
-            return None
+            return False
 
     def _create_reschedule_pdf(self, pdf_path, vendor_name, lines_df):
         """Create a PDF reschedule file for a vendor"""
@@ -2425,21 +2346,21 @@ class LocalDataManager:
                                 etd_label = "Proposed ETD (Fast)"
 
                             proposed_date = etd_date.strftime("%d.%m.%Y")
-                        except:
+                        except Exception:
                             proposed_date = reschedule_date_str
 
                     # Status indicator
                     status = line.get("reschedule_status", "")
                     status_symbol = ""
                     if status == "Reschedule In":
-                        status_symbol = "↑ EARLIER"
+                        status_symbol = " EARLIER"
                     elif status == "Reschedule Out":
-                        status_symbol = "↓ LATER"
+                        status_symbol = " LATER"
                     elif status == "Unconfirmed":
-                        status_symbol = "⚠ UNCONFIRMED"
+                        status_symbol = " UNCONFIRMED"
 
                     # Bullet point with line details
-                    line_text = f"• Line {line.get('item', 'N/A')} — {line.get('material_code', 'N/A')} — {line.get('short_text', 'N/A')[:40]}"
+                    line_text = f" Line {line.get('item', 'N/A')}  {line.get('material_code', 'N/A')}  {line.get('short_text', 'N/A')[:40]}"
                     c.drawString(0.75 * inch, y_pos, line_text)
                     y_pos -= 0.15 * inch
 
@@ -2453,7 +2374,7 @@ class LocalDataManager:
 
                     # Date change line with arrow
                     if proposed_date:
-                        date_change = f"  {original_label} Date: {original_date} ⇒ {etd_label}: {proposed_date}"
+                        date_change = f"  {original_label} Date: {original_date}  {etd_label}: {proposed_date}"
                         if status_symbol:
                             date_change += f"  [{status_symbol}]"
                         c.drawString(0.75 * inch, y_pos, date_change)
@@ -2681,7 +2602,7 @@ class ForecastDataManager:
 
                     try:
                         qty = int(float(qty))
-                    except:
+                    except Exception:
                         continue
 
                     forecast_date, week_num, month_num = self._parse_date_from_column(
@@ -2860,7 +2781,7 @@ class ForecastDataManager:
                                 lead_time_days = int(
                                     "".join(filter(str.isdigit, lead_time_str))
                                 )
-                        except:
+                        except Exception:
                             lead_time_days = 0
 
                 # Upsert vendor
@@ -2892,7 +2813,7 @@ class ForecastDataManager:
                         return None
                     try:
                         return pd.to_datetime(val).strftime("%d.%m.%Y")
-                    except:
+                    except Exception:
                         return None
 
                 req_date = format_date(row.get(date_col)) if date_col else None
@@ -3129,7 +3050,7 @@ class ForecastDataManager:
                         ),
                         commit=True,
                     )
-            except:
+            except Exception:
                 continue
 
         return linked_count
@@ -3197,8 +3118,8 @@ class ForecastDataManager:
                     try:
                         if len(str(cell.value)) > max_length:
                             max_length = len(str(cell.value))
-                    except:
-                        pass
+                    except Exception:  # TODO: Add proper error handling
+                        pass  # TODO: Add proper error handling
                 adjusted_width = min(max_length + 2, 30)
                 worksheet.column_dimensions[column_letter].width = adjusted_width
 
@@ -3315,7 +3236,7 @@ class ForecastDataManager:
                             pr_eta = datetime.strptime(pr_eta_str, "%d.%m.%Y")
                             po_etd = subtract_working_days(pr_eta, transport_days)
                             po_etd_str = po_etd.strftime("%d.%m.%Y")
-                        except:
+                        except Exception:
                             po_etd_str = pr_eta_str
                     else:
                         po_etd_str = pr_eta_str
@@ -3447,7 +3368,7 @@ class ForecastDataManager:
                 year = int(parts[1]) if len(parts) > 1 else default_year
                 date = datetime.strptime(f"{year}-W{week_num:02d}-1", "%Y-W%W-%w")
                 return date, week_num, date.month
-            except:
+            except Exception:
                 return None, None, None
 
         month_names = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
@@ -3539,9 +3460,8 @@ class ForecastDataManager:
                             "ref": req["req_number"],
                         }
                     )
-                except:
-                    pass
-
+                except Exception:  # TODO: Add proper error handling
+                    pass  # TODO: Add proper error handling
         # MODIFIED: For open orders, use rescheduling_date (ETA) if available, otherwise requested_del_date
         # MODIFIED: For open orders, use rescheduling_date (ETA) if available, otherwise requested_del_date + transport days
         for order in orders:
@@ -3561,7 +3481,7 @@ class ForecastDataManager:
                     if transport_days > 0:
                         eta_date = add_working_days(etd_date, transport_days)
                         date_to_use = eta_date.strftime("%d.%m.%Y")
-                except:
+                except Exception:
                     pass  # Keep original date if conversion fails
             else:
                 date_to_use = None
@@ -3581,8 +3501,8 @@ class ForecastDataManager:
                             "ref": order["po"],
                         }
                     )
-                except:
-                    pass
+                except Exception:  # TODO: Add proper error handling
+                    pass  # TODO: Add proper error handling
         # Group by vendor, material, and period
         forecast_data = {}
         today = datetime.now()
@@ -3759,8 +3679,8 @@ class ForecastDataManager:
                     try:
                         if len(str(cell.value)) > max_length:
                             max_length = len(str(cell.value))
-                    except:
-                        pass
+                    except Exception:  # TODO: Add proper error handling
+                        pass  # TODO: Add proper error handling
                 adjusted_width = min(max_length + 3, 40)
                 worksheet.column_dimensions[column_letter].width = adjusted_width
 
@@ -3799,8 +3719,8 @@ class ForecastDataManager:
                     try:
                         if len(str(cell.value)) > max_length:
                             max_length = len(str(cell.value))
-                    except:
-                        pass
+                    except Exception:  # TODO: Add proper error handling
+                        pass  # TODO: Add proper error handling
                 adjusted_width = min(max_length + 3, 40)
                 summary_ws.column_dimensions[column_letter].width = adjusted_width
 
@@ -3984,8 +3904,8 @@ class ForecastDataManager:
                 try:
                     if len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
-                except:
-                    pass
+                except Exception:  # TODO: Add proper error handling
+                    pass  # TODO: Add proper error handling
             adjusted_width = min(max_length + 2, 50)
             worksheet.column_dimensions[column_letter].width = adjusted_width
 
@@ -4095,7 +4015,7 @@ class ForecastDataManager:
 
             for period_key, period_info in sorted_periods:
                 period_text = (
-                    f"  • {period_info['label']}: {period_info['qty']:,} {data['unit']}"
+                    f"   {period_info['label']}: {period_info['qty']:,} {data['unit']}"
                 )
                 c.drawString(0.75 * inch, y_pos, period_text)
                 y_pos -= 0.18 * inch
@@ -4745,22 +4665,22 @@ Features:
                 processed_count, closed_count, materials_created, materials_updated = (
                     result
                 )
-                message = f"✅ Requisitions Upload Complete!\n\n"
-                message += f"📋 Requisitions: {processed_count} lines imported"
+                message = f" Requisitions Upload Complete!\n\n"
+                message += f" Requisitions: {processed_count} lines imported"
 
                 if closed_count > 0:
-                    message += f"\n📋 Marked {closed_count} missing lines as 'Closed'"
+                    message += f"\n Marked {closed_count} missing lines as 'Closed'"
 
-                message += f"\n\n📦 Materials Master Data:"
-                message += f"\n  • Created: {materials_created} new materials"
-                message += f"\n  • Updated: {materials_updated} existing materials"
+                message += f"\n\n Materials Master Data:"
+                message += f"\n   Created: {materials_created} new materials"
+                message += f"\n   Updated: {materials_updated} existing materials"
 
                 if materials_created > 0 or materials_updated > 0:
-                    message += f"\n\n💡 Material master data has been automatically populated with:"
-                    message += f"\n  • Material codes & descriptions"
-                    message += f"\n  • Lead times (from 'Planned Deliv. Time')"
-                    message += f"\n  • Preferred vendors"
-                    message += f"\n\n🎯 You can now run MRP immediately!"
+                    message += f"\n\n Material master data has been automatically populated with:"
+                    message += f"\n   Material codes & descriptions"
+                    message += f"\n   Lead times (from 'Planned Deliv. Time')"
+                    message += f"\n   Preferred vendors"
+                    message += f"\n\n You can now run MRP immediately!"
 
             elif isinstance(result, tuple) and len(result) == 2:
                 # Old format compatibility
@@ -5107,7 +5027,7 @@ Report will help identify:
 
         try:
             weeks = int(self.forecast_weeks_var.get())
-        except:
+        except Exception:
             weeks = 13
 
         group_by = self.outbound_group_var.get()
@@ -5195,7 +5115,7 @@ Report will help identify:
 
         try:
             weeks = int(self.forecast_weeks_var.get())
-        except:
+        except Exception:
             weeks = 13
 
         group_by = self.outbound_group_var.get()
@@ -5291,7 +5211,7 @@ Report will help identify:
 
         try:
             weeks = int(self.forecast_weeks_var.get())
-        except:
+        except Exception:
             weeks = 13
 
         group_by = self.outbound_group_var.get()
@@ -5387,7 +5307,7 @@ Report will help identify:
 
         try:
             weeks = int(self.forecast_weeks_var.get())
-        except:
+        except Exception:
             weeks = 13
 
         group_by = self.outbound_group_var.get()
@@ -5506,9 +5426,8 @@ Report will help identify:
                     # Clean up temp file
                     try:
                         os.remove(temp_path)
-                    except:
-                        pass
-
+                    except Exception:  # TODO: Add proper error handling
+                        pass  # TODO: Add proper error handling
                 except Exception as e:
                     failed_count += 1
                     failed_details.append(f"{vendor_name}: {str(e)}")
@@ -5534,7 +5453,7 @@ Report will help identify:
         """Email forecast to a single vendor"""
         try:
             weeks = int(self.forecast_weeks_var.get())
-        except:
+        except Exception:
             weeks = 13
 
         group_by = self.outbound_group_var.get()
@@ -5647,9 +5566,8 @@ Report will help identify:
             # Clean up temp file
             try:
                 os.remove(temp_path)
-            except:
-                pass
-
+            except Exception:  # TODO: Add proper error handling
+                pass  # TODO: Add proper error handling
         except Exception as e:
             messagebox.showerror(
                 "Error", f"Failed to send forecast:\n{str(e)}", parent=self
@@ -6167,22 +6085,22 @@ class MRPPlanningWindow(tk.Toplevel):
 
         # Tab 1: Run MRP
         run_frame = ttk.Frame(notebook)
-        notebook.add(run_frame, text="▶ Run MRP")
+        notebook.add(run_frame, text=" Run MRP")
         self.setup_run_mrp_tab(run_frame)
 
         # Tab 2: View Results
         results_frame = ttk.Frame(notebook)
-        notebook.add(results_frame, text="📊 MRP Results")
+        notebook.add(results_frame, text=" MRP Results")
         self.setup_results_tab(results_frame)
 
         # Tab 3: Manage Requisitions
         req_frame = ttk.Frame(notebook)
-        notebook.add(req_frame, text="📋 Requisitions")
+        notebook.add(req_frame, text=" Requisitions")
         self.setup_requisitions_tab(req_frame)
 
         # Tab 4: Master Data
         master_frame = ttk.Frame(notebook)
-        notebook.add(master_frame, text="⚙ Master Data")
+        notebook.add(master_frame, text=" Master Data")
         self.setup_master_data_tab(master_frame)
 
     def setup_run_mrp_tab(self, parent):
@@ -6250,7 +6168,7 @@ class MRPPlanningWindow(tk.Toplevel):
 
         ttk.Button(
             run_btn_frame,
-            text="▶ Run MRP Calculation",
+            text=" Run MRP Calculation",
             command=self.run_mrp,
             style="Accent.TButton",
         ).pack(side=tk.LEFT, padx=5)
@@ -6439,16 +6357,16 @@ class MRPPlanningWindow(tk.Toplevel):
         action_frame.pack(fill=tk.X)
 
         ttk.Button(
-            action_frame, text="✓ Approve Selected", command=self.approve_requisitions
+            action_frame, text=" Approve Selected", command=self.approve_requisitions
         ).pack(side=tk.LEFT, padx=5)
         ttk.Button(
-            action_frame, text="✗ Reject Selected", command=self.reject_requisitions
+            action_frame, text=" Reject Selected", command=self.reject_requisitions
         ).pack(side=tk.LEFT, padx=5)
         ttk.Button(
-            action_frame, text="🔄 Convert to PO", command=self.convert_to_po
+            action_frame, text=" Convert to PO", command=self.convert_to_po
         ).pack(side=tk.LEFT, padx=5)
         ttk.Button(
-            action_frame, text="📋 View Details", command=self.view_req_details
+            action_frame, text=" View Details", command=self.view_req_details
         ).pack(side=tk.LEFT, padx=5)
 
         self.load_requisitions()
@@ -6532,7 +6450,7 @@ class MRPPlanningWindow(tk.Toplevel):
         # NEW: Add pricing info label
         pricing_info = ttk.Label(
             form_frame,
-            text="💡 Tip: Prices are automatically updated when uploading Open Order Book",
+            text=" Tip: Prices are automatically updated when uploading Open Order Book",
             font=("Helvetica", 8, "italic"),
             foreground="gray",
         )
@@ -6581,7 +6499,7 @@ class MRPPlanningWindow(tk.Toplevel):
                     self.after(
                         0,
                         lambda run_id=run_id: self.mrp_status_text.insert(
-                            tk.END, f"\n✓ MRP Run {run_id} completed successfully!\n"
+                            tk.END, f"\n MRP Run {run_id} completed successfully!\n"
                         ),
                     )
                     self.after(0, self.load_recent_runs)
@@ -6600,7 +6518,7 @@ class MRPPlanningWindow(tk.Toplevel):
                     self.after(
                         0,
                         lambda error_msg=error_msg: self.mrp_status_text.insert(
-                            tk.END, f"\n✗ ERROR: {error_msg}\n"
+                            tk.END, f"\n ERROR: {error_msg}\n"
                         ),
                     )
                     self.after(
@@ -7124,7 +7042,7 @@ class MRPPlanningWindow(tk.Toplevel):
         if exceptions:
             msg = f"MRP Run {run_id} - Exceptions Found:\n\n"
             for exc in exceptions[:10]:  # Show first 10
-                msg += f"• {exc['material_code']}: {exc['exception_type']}\n"
+                msg += f" {exc['material_code']}: {exc['exception_type']}\n"
 
             if len(exceptions) > 10:
                 msg += f"\n... and {len(exceptions) - 10} more"
@@ -7478,17 +7396,17 @@ class OpenOrderBookWindow(tk.Toplevel):
 
         ttk.Button(
             top_toolbar,
-            text="📁 Upload Order Book (Excel)",
+            text=" Upload Order Book (Excel)",
             command=self.upload_order_book,
         ).pack(side=tk.LEFT, padx=5)
 
-        ttk.Button(top_toolbar, text="🔄 Refresh Data", command=self.refresh_data).pack(
+        ttk.Button(top_toolbar, text=" Refresh Data", command=self.refresh_data).pack(
             side=tk.LEFT, padx=5
         )
 
         ttk.Button(
             top_toolbar,
-            text="📦 Arriving This Week",
+            text=" Arriving This Week",
             command=self.show_arriving_orders_this_week
         ).pack(side=tk.LEFT, padx=5)
 
@@ -7506,7 +7424,7 @@ class OpenOrderBookWindow(tk.Toplevel):
         ).pack(side=tk.LEFT, padx=15)
 
         # Level 2: Add help icon/label (8 spaces)
-        help_label = ttk.Label(top_toolbar, text="ℹ️", cursor="hand2", foreground="blue")
+        help_label = ttk.Label(top_toolbar, text="", cursor="hand2", foreground="blue")
         help_label.pack(side=tk.LEFT)
 
         # Level 2: Bind help tooltip (8 spaces)
@@ -7514,10 +7432,10 @@ class OpenOrderBookWindow(tk.Toplevel):
             # Level 3: Function body (12 spaces from class start, 4 from def)
             messagebox.showinfo(
                 "Auto-Close Help",
-                "When enabled (✓): Lines missing from the uploaded file will be marked as 'Closed'\n"
-                "→ Use for FULL order book replacements\n\n"
+                "When enabled (): Lines missing from the uploaded file will be marked as 'Closed'\n"
+                " Use for FULL order book replacements\n\n"
                 "When disabled ( ): Existing lines remain open, only new/updated lines are added\n"
-                "→ Use for INCREMENTAL additions",
+                " Use for INCREMENTAL additions",
                 parent=self,
             )
 
@@ -7552,6 +7470,7 @@ class OpenOrderBookWindow(tk.Toplevel):
             "Req. Date",
             "Conf. Date",
             "Reschedule Date",
+            "Comments",
             "Status",
         )
 
@@ -7574,6 +7493,7 @@ class OpenOrderBookWindow(tk.Toplevel):
             "Req. Date": 90,
             "Conf. Date": 90,
             "Reschedule Date": 110,
+            "Comments": 150,
             "Status": 100,
         }
         for col in columns:
@@ -7636,8 +7556,8 @@ class OpenOrderBookWindow(tk.Toplevel):
                     result
                 )
 
-                message = f"✅ Order Book Upload Complete!\n\n"
-                message += f"📦 Orders: {processed_count} lines imported"
+                message = f" Order Book Upload Complete!\n\n"
+                message += f" Orders: {processed_count} lines imported"
 
                 # Level 4: Conditional message for closed lines (12 spaces)
                 if auto_close_missing:
@@ -7645,23 +7565,23 @@ class OpenOrderBookWindow(tk.Toplevel):
                     if closed_count > 0:
                         # Level 6: Display closure info (20 spaces)
                         message += (
-                            f"\n📦 Marked {closed_count} missing lines as 'Closed'"
+                            f"\n Marked {closed_count} missing lines as 'Closed'"
                         )
                     else:
                         # Level 6: No closures (20 spaces)
-                        message += f"\n✓ No lines needed to be closed"
+                        message += f"\n No lines needed to be closed"
                 else:
                     # Level 5: Auto-close was disabled (16 spaces)
-                    message += f"\n✓ Auto-close disabled - existing lines remain open"
+                    message += f"\n Auto-close disabled - existing lines remain open"
 
-                message += f"\n\n💰 Material Prices Updated:"
-                message += f"\n  • Updated: {updated_prices} materials"
-                message += f"\n  • Created: {created_materials} new materials"
+                message += f"\n\n Material Prices Updated:"
+                message += f"\n   Updated: {updated_prices} materials"
+                message += f"\n   Created: {created_materials} new materials"
 
                 # Level 4: Additional info (12 spaces)
                 if updated_prices > 0 or created_materials > 0:
                     # Level 5: Inside if (16 spaces)
-                    message += f"\n\n💡 Material master prices have been automatically updated!"
+                    message += f"\n\n Material master prices have been automatically updated!"
                     message += (
                         f"\n   These prices will be used when converting PRs to POs."
                     )
@@ -7984,7 +7904,8 @@ class OpenOrderBookWindow(tk.Toplevel):
         return orders
 
     def apply_status_filters(self, orders):
-        """Apply status-based filters"""
+        """Apply status-based filters with proper AND logic"""
+        # If no status filters are active, return all orders
         if not any(var.get() for var in self.status_vars.values()):
             return orders
 
@@ -7997,18 +7918,30 @@ class OpenOrderBookWindow(tk.Toplevel):
             has_conf = bool(str(conf_date).strip())
             has_reschedule = bool(str(reschedule_date).strip())
 
-            include = False
+            # Check each active filter - order must pass ALL active filters
+            passes_all_filters = True
 
-            if self.status_vars["has_confirmation"].get() and has_conf:
-                include = True
-            if self.status_vars["has_reschedule"].get() and has_reschedule:
-                include = True
-            if self.status_vars["no_confirmation"].get() and not has_conf:
-                include = True
-            if self.status_vars["no_reschedule"].get() and not has_reschedule:
-                include = True
+            # If "Has Confirmation" is checked, order MUST have confirmation
+            if self.status_vars["has_confirmation"].get():
+                if not has_conf:
+                    passes_all_filters = False
 
-            if include:
+            # If "Has Reschedule" is checked, order MUST have reschedule date
+            if self.status_vars["has_reschedule"].get():
+                if not has_reschedule:
+                    passes_all_filters = False
+
+            # If "No Confirmation" is checked, order MUST NOT have confirmation
+            if self.status_vars["no_confirmation"].get():
+                if has_conf:
+                    passes_all_filters = False
+
+            # If "No Reschedule" is checked, order MUST NOT have reschedule date
+            if self.status_vars["no_reschedule"].get():
+                if has_reschedule:
+                    passes_all_filters = False
+
+            if passes_all_filters:
                 filtered.append(order)
 
         return filtered
@@ -8045,6 +7978,7 @@ class OpenOrderBookWindow(tk.Toplevel):
                 order.get("requested_del_date", ""),
                 order.get("conf_delivery_date", ""),
                 order.get("rescheduling_date", ""),
+                order.get("comments", ""),
                 status,
             )
 
@@ -8196,8 +8130,8 @@ class OpenOrderBookWindow(tk.Toplevel):
                         try:
                             if len(str(cell.value)) > max_length:
                                 max_length = len(str(cell.value))
-                        except:
-                            pass
+                        except Exception:  # TODO: Add proper error handling
+                            pass  # TODO: Add proper error handling
                     adjusted_width = min(max_length + 2, 50)
                     worksheet.column_dimensions[column_letter].width = adjusted_width
 
@@ -8329,7 +8263,7 @@ class ArrivingOrdersWindow(tk.Toplevel):
         
         ttk.Label(
             title_frame,
-            text=f"📦 Orders Arriving: {week_start} - {week_end}",
+            text=f" Orders Arriving: {week_start} - {week_end}",
             font=("Helvetica", 14, "bold")
         ).pack(side=tk.LEFT)
         
@@ -8345,19 +8279,19 @@ class ArrivingOrdersWindow(tk.Toplevel):
         
         ttk.Button(
             button_frame,
-            text="📊 Export to Excel",
+            text=" Export to Excel",
             command=self.export_to_excel
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             button_frame,
-            text="🔄 Refresh",
+            text=" Refresh",
             command=lambda: [self.destroy(), parent.show_arriving_orders_this_week()]
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             button_frame,
-            text="❌ Close",
+            text=" Close",
             command=self.destroy
         ).pack(side=tk.RIGHT, padx=5)
         
@@ -8515,8 +8449,8 @@ class EmailSender:
                 for filename in os.listdir(folder):
                     if filename.lower().endswith(".pdf") and po_number in filename:
                         return os.path.join(folder, filename)
-            except:
-                pass
+            except Exception:  # TODO: Add proper error handling
+                pass  # TODO: Add proper error handling
         return None
 
     def generate_po_email_content(self, po_data):
@@ -8653,7 +8587,7 @@ class EmailSender:
             self.log(f"WARNING: Could not load Outlook signature: {e}")
             return ""
 
-    def _send_smtp(self, to_emails, subject, body, attachment_path=None):
+    def _send_smtp(self, to_emails, subject, body, attachment_path=None, use_custom_signature=False):
         """Generic SMTP send method"""
         if not self.smtp_config:
             return False, "SMTP configuration is missing."
@@ -8661,8 +8595,16 @@ class EmailSender:
         if not to_emails:
             return False, "No email address provided."
 
-        # Get email signature
-        signature_html = self.dm.get_signature()
+        # Get Outlook signature by default, custom signature only if requested
+        outlook_signature = self._get_outlook_signature()
+        custom_signature = self.dm.get_signature() if use_custom_signature else ""
+        
+        # Combine signatures
+        combined_signature = ""
+        if outlook_signature:
+            combined_signature = outlook_signature
+        if custom_signature:
+            combined_signature = (combined_signature + "<br>" + custom_signature) if combined_signature else custom_signature
         
         msg = MIMEMultipart("alternative")
         msg["From"] = (
@@ -8673,18 +8615,18 @@ class EmailSender:
         
         # Plain text version
         plain_body = body
-        if signature_html:
+        if combined_signature:
             plain_body += "\n\n---\n[Email Signature]"
         msg.attach(MIMEText(plain_body, "plain"))
         
         # HTML version with signature
-        if signature_html:
+        if combined_signature:
             html_body = f"""
             <html>
                 <body>
                     <pre style="font-family: Arial, sans-serif;">{body}</pre>
                     <br>
-                    {signature_html}
+                    {combined_signature}
                 </body>
             </html>
             """
@@ -8712,7 +8654,7 @@ class EmailSender:
         server.quit()
         return True, "Email sent via SMTP"
 
-    def _send_outlook(self, to_emails, subject, body, attachment_path=None):
+    def _send_outlook(self, to_emails, subject, body, attachment_path=None, use_custom_signature=False):
         """Generic Outlook send method"""
         if not to_emails:
             return False, "No email address provided."
@@ -8726,17 +8668,18 @@ class EmailSender:
             mail.To = to_emails
             mail.Subject = subject
 
-            # Get both Outlook default signature and custom signature
+            # Get Outlook default signature and custom signature only if requested
             outlook_signature = self._get_outlook_signature()
-            custom_signature = self.dm.get_signature()
+            custom_signature = self.dm.get_signature() if use_custom_signature else ""
             
             # Combine signatures
-            if custom_signature or outlook_signature:
-                combined_signature = ""
-                if custom_signature:
-                    combined_signature += custom_signature
-                if outlook_signature:
-                    combined_signature += "<br>" + outlook_signature
+            combined_signature = ""
+            if outlook_signature:
+                combined_signature = outlook_signature
+            if custom_signature:
+                combined_signature = (combined_signature + "<br>" + custom_signature) if combined_signature else custom_signature
+            
+            if combined_signature:
                 mail.HTMLBody = body.replace("\n", "<br>") + "<br><br>" + combined_signature
             else:
                 mail.Body = body
@@ -8750,7 +8693,7 @@ class EmailSender:
             # Uninitialize COM when done
             pythoncom.CoUninitialize()
 
-    def send_all_pending_emails(self, preferred_method="Outlook", pos_to_send=None):
+    def send_all_pending_emails(self, preferred_method="Outlook", pos_to_send=None, use_custom_signature=False):
         """Send PO emails"""
         if preferred_method == "Outlook" and not OUTLOOK_AVAILABLE:
             return (
@@ -8786,11 +8729,11 @@ class EmailSender:
             try:
                 if preferred_method == "Outlook":
                     success, message = self._send_outlook(
-                        to_emails, subject, body, pdf_path
+                        to_emails, subject, body, pdf_path, use_custom_signature
                     )
                 else:
                     success, message = self._send_smtp(
-                        to_emails, subject, body, pdf_path
+                        to_emails, subject, body, pdf_path, use_custom_signature
                     )
             except Exception as e:
                 self.log(f"ERROR: Failed to send PO {po_number}: {e}")
@@ -8819,7 +8762,7 @@ class EmailSender:
             summary += "\n\nFailures:\n" + "\n".join(failed_details)
         return sent_count, failed_count, summary
 
-    def _send_smtp_multiple_attachments(self, to_emails, subject, body, attachment_paths):
+    def _send_smtp_multiple_attachments(self, to_emails, subject, body, attachment_paths, use_custom_signature=False):
         """Send email via SMTP with multiple attachments"""
         if not self.smtp_config:
             return False, "SMTP configuration is missing."
@@ -8827,8 +8770,16 @@ class EmailSender:
         if not to_emails:
             return False, "No email address provided."
 
-        # Get email signature
-        signature_html = self.dm.get_signature()
+        # Get Outlook signature by default, custom signature only if requested
+        outlook_signature = self._get_outlook_signature()
+        custom_signature = self.dm.get_signature() if use_custom_signature else ""
+        
+        # Combine signatures
+        combined_signature = ""
+        if outlook_signature:
+            combined_signature = outlook_signature
+        if custom_signature:
+            combined_signature = (combined_signature + "<br>" + custom_signature) if combined_signature else custom_signature
         
         msg = MIMEMultipart("alternative")
         msg["From"] = f"{self.smtp_config['from_name']} <{self.smtp_config['from_email']}>"
@@ -8837,18 +8788,18 @@ class EmailSender:
         
         # Plain text version
         plain_body = body
-        if signature_html:
+        if combined_signature:
             plain_body += "\n\n---\n[Email Signature]"
         msg.attach(MIMEText(plain_body, "plain"))
         
         # HTML version with signature
-        if signature_html:
+        if combined_signature:
             html_body = f"""
             <html>
                 <body>
                     <pre style="font-family: Arial, sans-serif;">{body}</pre>
                     <br>
-                    {signature_html}
+                    {combined_signature}
                 </body>
             </html>
             """
@@ -9053,7 +9004,7 @@ class POManagementWindow(tk.Toplevel):
                             f.write(pdf_buffer.getvalue())
                         generated_count += 1
                         processed_pos.append(po_number)
-                        self.gen_log.insert(tk.END, f"✓ Generated PO {po_number}\n")
+                        self.gen_log.insert(tk.END, f" Generated PO {po_number}\n")
 
                 self.dm.mark_pos_as_created(processed_pos)
 
@@ -9616,24 +9567,32 @@ class SettingsWindow(tk.Toplevel):
         
         ttk.Button(
             button_frame,
-            text="📝 Open Visual Editor",
+            text=" Open Visual Editor",
             command=self.open_signature_editor,
             width=25
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             button_frame,
-            text="💾 Save Signature",
+            text=" Save Signature",
             command=self.save_signature,
             width=20
         ).pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
             button_frame,
-            text="📧 Test Email",
+            text=" Test Email",
             command=self.test_signature_email,
             width=20
         ).pack(side=tk.LEFT, padx=5)
+        
+        # Add checkbox for using custom signature
+        self.use_custom_signature_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            button_frame,
+            text="Use this custom signature (instead of Outlook default)",
+            variable=self.use_custom_signature_var
+        ).pack(side=tk.LEFT, padx=15)
         
         # HTML Editor
         html_label = ttk.Label(editor_frame, text="HTML Signature Code:")
@@ -9645,7 +9604,11 @@ class SettingsWindow(tk.Toplevel):
         self.signature_html_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
         # Preview
-        preview_label = ttk.Label(editor_frame, text="Preview:")
+        preview_label = ttk.Label(
+            editor_frame, 
+            text="HTML Code Preview (Note: Images/logos won't display here - use 'Test Email' button to see rendered signature):",
+            wraplength=700
+        )
         preview_label.pack(anchor="w", pady=(10, 5))
         
         self.signature_preview = scrolledtext.ScrolledText(
@@ -9657,20 +9620,41 @@ class SettingsWindow(tk.Toplevel):
         self.load_signature()
         
     def open_signature_editor(self):
-        """Open visual signature editor"""
-        SignatureEditorWindow(self, self.signature_html_text)
+        """Open improved signature editor with live preview"""
+        try:
+            # Pass self.update_signature_display as the callback
+            ImprovedSignatureEditor(self, self.dm.db, self.log, on_save_callback=self.update_signature_display)
+        except Exception as e:
+            self.log(f"ERROR: Failed to open signature editor: {e}")
+            messagebox.showerror("Error", f"Failed to open signature editor:\n{e}", parent=self)
         
+        
+    def update_signature_display(self, html_content):
+        """Callback function to update the HTML text box and preview"""
+        self.signature_html_text.delete("1.0", tk.END)
+        self.signature_html_text.insert("1.0", html_content)
+
+        # Update preview as well
+        self.signature_preview.config(state='normal')
+        self.signature_preview.delete("1.0", tk.END)
+        self.signature_preview.insert("1.0", html_content)
+        self.signature_preview.config(state='disabled')
+        self.log("INFO: Signature display updated from visual editor.")
+
     def save_signature(self):
         """Save signature to database"""
         try:
             html_content = self.signature_html_text.get("1.0", tk.END).strip()
             
-            # Save to database
+            # Save HTML content to database
             self.dm.db.execute_query(
-                """INSERT OR REPLACE INTO email_signatures (id, html_content, last_updated) 
+                """INSERT OR REPLACE INTO email_signatures (id, html_content, last_updated)
                    VALUES (1, ?, CURRENT_TIMESTAMP)""",
                 (html_content,)
             )
+            
+            # Save the preference whether to use custom signature
+            self.dm.save_config("use_custom_signature", self.use_custom_signature_var.get())
             
             # Update preview
             self.signature_preview.config(state='normal')
@@ -9702,10 +9686,10 @@ class SettingsWindow(tk.Toplevel):
             result = self.dm.db.execute_query(
                 "SELECT html_content FROM email_signatures WHERE id = 1",
                 (),
-                fetchall=False
+                fetchone=True
             )
             
-            if result and result['html_content']:
+            if result and isinstance(result, dict) and result.get('html_content'):
                 self.signature_html_text.delete("1.0", tk.END)
                 self.signature_html_text.insert("1.0", result['html_content'])
                 
@@ -9717,87 +9701,72 @@ class SettingsWindow(tk.Toplevel):
                 
         except Exception as e:
             self.log(f"INFO: No existing signature found or error loading: {e}")
+        
+        # Load the use_custom_signature preference
+        try:
+            use_custom = self.dm.get_config("use_custom_signature", False)
+            self.use_custom_signature_var.set(use_custom)
+        except Exception as e:
+            self.log(f"INFO: Could not load use_custom_signature preference: {e}")
             
     def test_signature_email(self):
-        """Send a test email with signature"""
+        """Send a test email with signature using EmailSender"""
         try:
-            html_content = self.signature_html_text.get("1.0", tk.END).strip()
-            
-            if not html_content:
-                messagebox.showwarning("No Signature", "Please create a signature first.", parent=self)
-                return
-                
-            # Get SMTP settings
-            smtp_config = self.dm.db.execute_query(
-                "SELECT * FROM smtp_config WHERE id = 1",
-                (),
-                fetchall=False
-            )
-            
-            if not smtp_config:
-                messagebox.showwarning(
-                    "No SMTP Config",
-                    "Please configure SMTP settings first.",
-                    parent=self
-                )
-                return
-                
             # Ask for test email address
             test_email = simpledialog.askstring(
                 "Test Email",
                 "Enter email address to send test:",
                 parent=self
             )
-            
-            if not test_email:
+            if not test_email: 
                 return
-                
-            # Send test email
-            import smtplib
-            from email.mime.multipart import MIMEMultipart
-            from email.mime.text import MIMEText
-            
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = "Email Signature Test"
-            msg["From"] = f"{smtp_config['from_name']} <{smtp_config['from_email']}>"
-            msg["To"] = test_email
-            
-            # Email body
-            body_text = "This is a test email to preview your signature.\n\n"
-            body_html = f"""
-            <html>
-                <body>
-                    <p>This is a test email to preview your signature.</p>
-                    <br>
-                    {html_content}
-                </body>
-            </html>
-            """
-            
-            msg.attach(MIMEText(body_text, "plain"))
-            msg.attach(MIMEText(body_html, "html"))
-            
-            # Send
-            server = smtplib.SMTP(smtp_config["smtp_server"], int(smtp_config["smtp_port"]))
-            if smtp_config.get("use_tls"):
-                server.starttls()
-            server.login(smtp_config["smtp_username"], smtp_config["smtp_password"])
-            server.send_message(msg)
-            server.quit()
-            
-            messagebox.showinfo("Success", f"Test email sent to {test_email}!", parent=self)
-            self.log(f"INFO: Test signature email sent to {test_email}")
-            
+
+            # Ask if they want to test with custom signature only or with Outlook + custom
+            include_both = messagebox.askyesno(
+                "Signature Test",
+                "Include Outlook signature?\n\nYes = Show Outlook + Custom signature (like normal emails)\nNo = Show Custom signature only (for testing custom part)",
+                parent=self
+            )
+
+            # Determine which signature to use based on the test type
+            use_custom_for_test = not include_both  # If *not* including both, use *only* custom
+
+            # Send using EmailSender
+            sender = EmailSender(self.log, self.dm)
+            subject = "Email Signature Test"
+            body = "This is a test email to preview your signature configuration.\n\n"
+
+            # Decide method (prefer SMTP for testing to avoid Outlook prompts if possible)
+            method = "SMTP" if self.dm.get_config("smtp_settings") else "Outlook"
+
+            if method == "Outlook" and not OUTLOOK_AVAILABLE:
+                messagebox.showerror("Error", "Outlook not available and SMTP not configured.", parent=self)
+                return
+
+            success = False
+            message = ""
+
+            if method == "Outlook":
+                success, message = sender._send_outlook(
+                    test_email, subject, body, None, use_custom_for_test
+                )
+            else:
+                success, message = sender._send_smtp(
+                    test_email, subject, body, None, use_custom_for_test
+                )
+
+            if success:
+                sig_type = "Outlook + Custom" if include_both else "Custom Only"
+                messagebox.showinfo("Success", f"Test email sent to {test_email}!\n\nShowing: {sig_type}", parent=self)
+                self.log(f"INFO: Test signature email sent ({sig_type})")
+            else:
+                messagebox.showerror("Error", f"Failed to send test email:\n{message}", parent=self)
+                self.log(f"ERROR: Failed to send test email: {message}")
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to send test email:\n{e}", parent=self)
             self.log(f"ERROR: Failed to send test email: {e}")
-
-
-# ==============================================================================
-# SIGNATURE EDITOR WINDOW
-# ==============================================================================
-
-
+            
 class SignatureEditorWindow(tk.Toplevel):
     """Visual editor for creating email signatures with editable text on canvas"""
     def __init__(self, parent, text_widget_callback):
@@ -9818,35 +9787,35 @@ class SignatureEditorWindow(tk.Toplevel):
         toolbar.pack(fill=tk.X, pady=(0, 10))
         
         ttk.Button(
-            toolbar, text="➕ Add Text Box", command=self.add_editable_text
+            toolbar, text=" Add Text Box", command=self.add_editable_text
         ).pack(side=tk.LEFT, padx=2)
         
         ttk.Button(
-            toolbar, text="🖼️ Add Image", command=self.add_image_element
+            toolbar, text=" Add Image", command=self.add_image_element
         ).pack(side=tk.LEFT, padx=2)
         
         ttk.Button(
-            toolbar, text="📋 Quick Contact", command=self.add_contact_template
-        ).pack(side=tk.LEFT, padx=2)
-        
-        ttk.Label(toolbar, text=" | ").pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(
-            toolbar, text="✏️ Edit Selected", command=self.edit_selected_text
-        ).pack(side=tk.LEFT, padx=2)
-        
-        ttk.Button(
-            toolbar, text="🗑️ Delete Selected", command=self.delete_selected
+            toolbar, text=" Quick Contact", command=self.add_contact_template
         ).pack(side=tk.LEFT, padx=2)
         
         ttk.Label(toolbar, text=" | ").pack(side=tk.LEFT, padx=5)
         
         ttk.Button(
-            toolbar, text="💾 Generate HTML", command=self.generate_html
+            toolbar, text=" Edit Selected", command=self.edit_selected_text
         ).pack(side=tk.LEFT, padx=2)
         
         ttk.Button(
-            toolbar, text="🔄 Clear All", command=self.clear_all
+            toolbar, text=" Delete Selected", command=self.delete_selected
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Label(toolbar, text=" | ").pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(
+            toolbar, text=" Generate HTML", command=self.generate_html
+        ).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Button(
+            toolbar, text=" Clear All", command=self.clear_all
         ).pack(side=tk.LEFT, padx=2)
         
         # Formatting toolbar
@@ -9889,7 +9858,7 @@ class SignatureEditorWindow(tk.Toplevel):
         # Instructions
         instructions = ttk.Label(
             main_frame,
-            text="💡 Double-click text to edit | Drag to move | Click to select | Generate HTML when done",
+            text=" Double-click text to edit | Drag to move | Click to select | Generate HTML when done",
             foreground="blue",
             font=("Arial", 9)
         )
@@ -10026,9 +9995,9 @@ class SignatureEditorWindow(tk.Toplevel):
         if title:
             contact_items.append((title, 11, "italic"))
         if phone:
-            contact_items.append((f"📞 {phone}", 10, "normal"))
+            contact_items.append((f" {phone}", 10, "normal"))
         if email:
-            contact_items.append((f"✉️ {email}", 10, "normal"))
+            contact_items.append((f" {email}", 10, "normal"))
         
         for text, size, style in contact_items:
             font_tuple = ("Arial", size, style) if style != "normal" else ("Arial", size)
@@ -10367,7 +10336,7 @@ class RemoteOperationsApp:
             dashboard_frame,
             title="Order Book",
             description="View and manage open orders",
-            icon="📊",
+            icon="📚",
             command=self.open_order_book_window,
             row=0,
             column=1,
@@ -10389,7 +10358,7 @@ class RemoteOperationsApp:
             dashboard_frame,
             title="MRP Planning",
             description="Material Requirements Planning & Requisitions",
-            icon="⚙️",
+            icon="📏",
             command=self.open_mrp_planning,
             row=1,
             column=1,
@@ -10400,7 +10369,7 @@ class RemoteOperationsApp:
             dashboard_frame,
             title="Forecasting & Planning",
             description="Manage forecasts and requisitions",
-            icon="📈",
+            icon="📆",
             command=self.open_forecast_management,
             row=2,
             column=0,
@@ -10411,7 +10380,7 @@ class RemoteOperationsApp:
             dashboard_frame,
             title="Reschedule Management",
             description="Generate and send reschedule files",
-            icon="📅",
+            icon="📦",
             command=self.open_reschedule_config,
             row=2,
             column=1,
@@ -10422,7 +10391,7 @@ class RemoteOperationsApp:
             dashboard_frame,
             title="System Settings",
             description="Configure email, SMTP, and company info",
-            icon="⚙️",
+            icon="📏",
             command=self.open_settings_window,
             row=3,
             column=0,
@@ -11015,8 +10984,8 @@ class VendorManagerWindow(tk.Toplevel):
                         try:
                             if len(str(cell.value)) > max_length:
                                 max_length = len(str(cell.value))
-                        except:
-                            pass
+                        except Exception:  # TODO: Add proper error handling
+                            pass  # TODO: Add proper error handling
                     adjusted_width = min(max_length + 2, 50)
                     worksheet.column_dimensions[column_letter].width = adjusted_width
 
@@ -11901,14 +11870,6 @@ class RescheduleConfigWindow(tk.Toplevel):
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=15)
 
-        ttk.Button(button_frame, text="Cancel", command=self.destroy).pack(
-            side=tk.RIGHT, padx=(10, 0)
-        )
-
-        ttk.Button(
-            button_frame, text="Send Emails", command=self.send_reschedule_emails_only
-        ).pack(side=tk.RIGHT, padx=(5, 0))
-
         generate_btn = ttk.Button(
             button_frame, text="Generate Files", command=self.generate_files
         )
@@ -11918,8 +11879,23 @@ class RescheduleConfigWindow(tk.Toplevel):
         try:
             style.configure("Accent.TButton", font=("Helvetica", 10, "bold"))
             generate_btn.configure(style="Accent.TButton")
-        except:
-            pass
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
+        # Add custom signature checkbox
+        self.use_custom_sig_var = tk.BooleanVar(value=self.dm.get_config('use_custom_signature', False))
+        ttk.Checkbutton(
+            button_frame,
+            text="Use Custom Signature",
+            variable=self.use_custom_sig_var
+        ).pack(side=tk.RIGHT, padx=5)
+
+        ttk.Button(
+            button_frame, text="Send Emails", command=self.send_reschedule_emails_only
+        ).pack(side=tk.RIGHT, padx=(5, 0))
+
+        ttk.Button(button_frame, text="Cancel", command=self.destroy).pack(
+            side=tk.RIGHT, padx=(10, 0)
+        )
 
         # Help text
         help_frame = ttk.LabelFrame(main_frame, text="Help", padding=10)
@@ -12179,6 +12155,9 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
 
             config = self.dm.get_config("company_config", {})
             buyer_email = config.get("buyer_email", "purchasing@company.com")
+            
+            # Get checkbox value for custom signature
+            use_custom_sig = self.use_custom_sig_var.get()
 
             # Check if files are ZIP or individual files
             zip_files = [f for f in recent_files if f.endswith(".zip")]
@@ -12220,6 +12199,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                                     email_map[supplier_name],
                                     buyer_email,
                                     send_method,
+                                    use_custom_sig,
                                 ):
                                     sent_count += 1
                                     self.log(
@@ -12267,6 +12247,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
                             email_map[supplier_name],
                             buyer_email,
                             send_method,
+                            use_custom_sig,
                         ):
                             sent_count += 1
                             self.log(
@@ -12295,7 +12276,7 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
             )
 
     def send_single_reschedule_email(
-        self, supplier_name, file_path, to_emails, buyer_email, method
+        self, supplier_name, file_path, to_emails, buyer_email, method, use_custom_signature=False
     ):
         """Send a single reschedule email using template"""
         sender = EmailSender(self.log, self.dm)
@@ -12304,12 +12285,12 @@ Note: Reschedule comparison prioritizes confirmed date over requested date when 
         try:
             if method == "Outlook":
                 success, message = sender._send_outlook(
-                    to_emails, subject, body, file_path
+                    to_emails, subject, body, file_path, use_custom_signature
                 )
                 return success
             else:
                 success, message = sender._send_smtp(
-                    to_emails, subject, body, file_path
+                    to_emails, subject, body, file_path, use_custom_signature
                 )
                 return success
         except Exception as e:
@@ -12359,6 +12340,15 @@ class EnhancedEmailPreviewWindow(tk.Toplevel):
 
         btn_frame = ttk.Frame(self)
         btn_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        # Add custom signature checkbox on the left
+        self.use_custom_sig_var = tk.BooleanVar(value=self.dm.get_config('use_custom_signature', False))
+        ttk.Checkbutton(
+            btn_frame, 
+            text="Use Custom Signature (default: Outlook signature)",
+            variable=self.use_custom_sig_var
+        ).pack(side=tk.LEFT, padx=5)
+        
         ttk.Button(btn_frame, text="Send All", command=self.send_all).pack(
             side=tk.RIGHT, padx=5
         )
@@ -12501,15 +12491,17 @@ class EnhancedEmailPreviewWindow(tk.Toplevel):
 
     def _send_emails_threaded(self, pos_to_send):
         method = self.get_send_method()
+        use_custom_sig = self.use_custom_sig_var.get()
+        
         if not messagebox.askyesno(
-            "Confirm", f"Send {len(pos_to_send)} email(s) via {method}?", parent=self
+            "Confirm", f"Send {len(pos_to_send)} email(s) via {method}?\n{'Using custom signature' if use_custom_sig else 'Using Outlook signature'}", parent=self
         ):
             return
 
         def send_thread():
             sender = EmailSender(self.log, self.dm)
             sent, failed, summary = sender.send_all_pending_emails(
-                preferred_method=method, pos_to_send=pos_to_send
+                preferred_method=method, pos_to_send=pos_to_send, use_custom_signature=use_custom_sig
             )
             self.after(0, lambda: messagebox.showinfo("Result", summary, parent=self))
             self.after(0, self.refresh_data)
@@ -12597,7 +12589,7 @@ class POPreviewWindow(tk.Toplevel):
         # Lines Frame
         lines_frame = ttk.LabelFrame(
             main_frame,
-            text="Line Items (Double-click a line to edit Confirmation Date)",
+            text="Line Items (Double-click to edit Confirmation Date or Comments)",
             padding=10,
         )
         lines_frame.pack(fill=tk.BOTH, expand=True)
@@ -12610,6 +12602,7 @@ class POPreviewWindow(tk.Toplevel):
             "Req. Date",
             "Conf. Date",
             "Reschedule Date",
+            "Comments",
             "Status",
         )
         self.lines_tree = ttk.Treeview(
@@ -12626,6 +12619,7 @@ class POPreviewWindow(tk.Toplevel):
         self.lines_tree.column("Req. Date", width=80)
         self.lines_tree.column("Conf. Date", width=80)
         self.lines_tree.column("Reschedule Date", width=100)
+        self.lines_tree.column("Comments", width=150)
         self.lines_tree.column("Status", width=60)
 
         self.lines_tree.pack(fill=tk.BOTH, expand=True)
@@ -12638,6 +12632,15 @@ class POPreviewWindow(tk.Toplevel):
         ttk.Button(btn_frame, text="Save Changes", command=self.save_changes).pack(
             side=tk.LEFT, padx=5
         )
+        
+        # Add custom signature checkbox
+        self.use_custom_sig_var = tk.BooleanVar(value=self.dm.get_config('use_custom_signature', False))
+        ttk.Checkbutton(
+            btn_frame,
+            text="Use Custom Signature",
+            variable=self.use_custom_sig_var
+        ).pack(side=tk.LEFT, padx=5)
+        
         ttk.Button(
             btn_frame, text="Generate & Send Email", command=self.generate_and_send
         ).pack(side=tk.LEFT, padx=5)
@@ -12653,7 +12656,7 @@ class POPreviewWindow(tk.Toplevel):
         """Load PO data from database"""
         query = """
             SELECT oo.item, oo.material_code, oo.short_text, oo.requested_qty, 
-                   oo.requested_del_date, oo.conf_delivery_date, oo.rescheduling_date, oo.status,
+                   oo.requested_del_date, oo.conf_delivery_date, oo.rescheduling_date, oo.comments, oo.status,
                    v.display_name, v.delivery_terms, v.payment_terms, v.transport_days
             FROM open_orders oo
             JOIN vendors v ON oo.vendor_name = v.vendor_name
@@ -12717,41 +12720,70 @@ class POPreviewWindow(tk.Toplevel):
                 req_date,
                 conf_date,
                 reschedule_date,
+                line.get("comments", ""),
                 line.get("status", ""),
             )
             self.lines_tree.insert("", "end", values=values)
 
     def edit_conf_date(self, event):
-        """Edit confirmation date for selected line"""
+        """Edit confirmation date and comments for selected line"""
         selected_iid = self.lines_tree.focus()
         if not selected_iid:
             return
 
-        # Create a small dialog for date entry
+        # Create a dialog for date and comments entry
         dialog = tk.Toplevel(self)
-        dialog.title("Edit Confirmation Date")
+        dialog.title("Edit Line Item")
         dialog.transient(self)
         dialog.grab_set()
+        dialog.geometry("450x250")
 
         item_values = self.lines_tree.item(selected_iid, "values")
         item_num = item_values[0]
         current_date = item_values[5]
+        current_comments = item_values[7]
 
-        ttk.Label(dialog, text=f"New Confirmation Date for Item {item_num}:").pack(
-            padx=10, pady=5
-        )
+        # Main frame
+        main_frame = ttk.Frame(dialog, padding=10)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Header
+        ttk.Label(
+            main_frame, 
+            text=f"Edit Item {item_num}", 
+            font=("Helvetica", 10, "bold")
+        ).pack(pady=(0, 10))
+
+        # Confirmation Date section
+        date_frame = ttk.LabelFrame(main_frame, text="Confirmation Date", padding=10)
+        date_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(date_frame, text="Format: DD.MM.YYYY").pack(anchor="w")
         date_var = tk.StringVar(value=current_date)
-        entry = ttk.Entry(dialog, textvariable=date_var)
-        entry.pack(padx=10, pady=5)
-        entry.focus()
+        date_entry = ttk.Entry(date_frame, textvariable=date_var, width=40)
+        date_entry.pack(fill=tk.X, pady=5)
+
+        # Comments section
+        comments_frame = ttk.LabelFrame(main_frame, text="Comments", padding=10)
+        comments_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        comments_text = tk.Text(comments_frame, height=5, width=40, wrap=tk.WORD)
+        comments_text.insert("1.0", current_comments)
+        comments_text.pack(fill=tk.BOTH, expand=True)
+
+        # Buttons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(pady=10)
 
         def on_ok():
             new_date = date_var.get().strip()
+            new_comments = comments_text.get("1.0", tk.END).strip()
+            
             # Basic validation (format DD.MM.YYYY)
             if new_date and not re.match(r"^\d{2}\.\d{2}\.\d{4}$", new_date):
                 messagebox.showwarning(
                     "Invalid Format",
-                    "Please use DD.MM.YYYY format or leave blank.",
+                    "Please use DD.MM.YYYY format for date or leave blank.",
                     parent=dialog,
                 )
                 return
@@ -12759,10 +12791,12 @@ class POPreviewWindow(tk.Toplevel):
             # Update the treeview visually
             current_values = list(self.lines_tree.item(selected_iid, "values"))
             current_values[5] = new_date
+            current_values[7] = new_comments
             self.lines_tree.item(selected_iid, values=tuple(current_values))
 
-            # Store the change to be saved later
-            self.changes_to_save[item_num] = new_date
+            # Store the changes to be saved later
+            # Store as tuple: (new_date, new_comments)
+            self.changes_to_save[item_num] = (new_date, new_comments)
 
             # Add a visual tag to show the line has been edited
             self.lines_tree.item(selected_iid, tags=("edited",))
@@ -12770,35 +12804,62 @@ class POPreviewWindow(tk.Toplevel):
 
             dialog.destroy()
 
-        btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(padx=10, pady=10)
-        ttk.Button(btn_frame, text="OK", command=on_ok).pack(side=tk.LEFT)
+        ttk.Button(btn_frame, text="OK", command=on_ok).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(
             side=tk.LEFT, padx=5
         )
 
+        # Focus on date entry
+        date_entry.focus()
+
     def save_changes(self):
-        """Save confirmation date changes to database"""
+        """Save confirmation date and comments changes to database"""
         if not self.changes_to_save:
             messagebox.showinfo(
-                "No Changes", "No confirmation dates were changed.", parent=self
+                "No Changes", "No changes were made.", parent=self
             )
             return
 
-        updates_for_db = []
-        for item_num, conf_date in self.changes_to_save.items():
-            # Create a tuple in the format (conf_date, po, item) for the DB method
-            updates_for_db.append((conf_date, self.po_number, item_num))
+        conf_date_updates = []
+        comment_updates = []
+        
+        for item_num, changes in self.changes_to_save.items():
+            # Changes is now a tuple: (new_date, new_comments)
+            if isinstance(changes, tuple):
+                conf_date, comments = changes
+                # Update confirmation date
+                if conf_date:
+                    conf_date_updates.append((conf_date, self.po_number, item_num))
+                # Update comments
+                comment_updates.append((comments, self.po_number, item_num))
+            else:
+                # Backward compatibility: if only date was stored
+                conf_date_updates.append((changes, self.po_number, item_num))
 
         try:
-            updated_count = self.dm.update_confirmation_dates(updates_for_db)
+            updated_count = 0
+            
+            # Update confirmation dates
+            if conf_date_updates:
+                updated_count += self.dm.update_confirmation_dates(conf_date_updates)
+            
+            # Update comments
+            if comment_updates:
+                for comments, po, item in comment_updates:
+                    self.dm.db.execute_query(
+                        "UPDATE open_orders SET comments = ? WHERE po = ? AND item = ?",
+                        (comments, po, item),
+                        commit=True
+                    )
+                    updated_count += 1
+            
             self.log(
-                f"INFO: Updated confirmation dates for {updated_count} lines on PO {self.po_number}."
+                f"INFO: Updated {updated_count} lines on PO {self.po_number}."
             )
             messagebox.showinfo(
                 "Success",
                 f"Successfully updated {updated_count} line(s).\n\n"
-                "TIP: You may want to regenerate the PDF with updated dates.",
+                "TIP: You may want to regenerate the PDF with updated information.",
                 parent=self,
             )
 
@@ -12986,21 +13047,22 @@ class POPreviewWindow(tk.Toplevel):
         try:
             sender = EmailSender(self.log, self.dm)
             method = "Outlook" if OUTLOOK_AVAILABLE else "SMTP"
+            use_custom_sig = self.use_custom_sig_var.get()
 
             if messagebox.askyesno(
                 "Confirm Send",
-                f"Send PO {self.po_number} to {result['display_name']} via {method}?",
+                f"Send PO {self.po_number} to {result['display_name']} via {method}?\n{'Using custom signature' if use_custom_sig else 'Using Outlook signature'}",
                 parent=self,
             ):
                 subject, body = sender.generate_po_email_content(po_data)
 
                 if method == "Outlook":
                     success, message = sender._send_outlook(
-                        result["emails"], subject, body, self.pdf_path
+                        result["emails"], subject, body, self.pdf_path, use_custom_sig
                     )
                 else:
                     success, message = sender._send_smtp(
-                        result["emails"], subject, body, self.pdf_path
+                        result["emails"], subject, body, self.pdf_path, use_custom_sig
                     )
 
                 if success:
@@ -13234,15 +13296,24 @@ class EmailReminderWindow(tk.Toplevel):
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=10)
 
+        ttk.Button(button_frame, text="Cancel", command=self.destroy).pack(side=tk.LEFT)
+        
+        # Add custom signature checkbox
+        self.use_custom_sig_var = tk.BooleanVar(value=self.dm.get_config('use_custom_signature', False))
+        ttk.Checkbutton(
+            button_frame,
+            text="Use Custom Signature",
+            variable=self.use_custom_sig_var
+        ).pack(side=tk.LEFT, padx=10)
+        
+        ttk.Button(
+            button_frame, text="Generate PDFs Only", command=self.generate_pdfs_only
+        ).pack(side=tk.RIGHT)
         ttk.Button(
             button_frame,
             text="Generate PDFs & Send Reminders",
             command=self.generate_and_send,
         ).pack(side=tk.RIGHT, padx=(5, 0))
-        ttk.Button(
-            button_frame, text="Generate PDFs Only", command=self.generate_pdfs_only
-        ).pack(side=tk.RIGHT)
-        ttk.Button(button_frame, text="Cancel", command=self.destroy).pack(side=tk.LEFT)
 
         self.load_vendors()
 
@@ -13315,9 +13386,8 @@ class EmailReminderWindow(tk.Toplevel):
                             po_groups[po_num]["oldest_date"] = req_date
                             days_old = (datetime.now() - req_date).days
                             po_groups[po_num]["days_old"] = days_old
-                    except:
-                        pass
-
+                    except Exception:  # TODO: Add proper error handling
+                        pass  # TODO: Add proper error handling
             # Display in tree
             for po_num, data in po_groups.items():
                 oldest_date_str = (
@@ -13693,7 +13763,7 @@ class EmailReminderWindow(tk.Toplevel):
                                     etd_date = reschedule_date
                                 display_date = etd_date.strftime("%d.%m.%Y")
                                 date_label = "ETD"
-                            except:
+                            except Exception:
                                 display_date = reschedule_date_str
                                 date_label = "Reschedule"
                         else:
@@ -13705,7 +13775,7 @@ class EmailReminderWindow(tk.Toplevel):
                         display_date = line.get("requested_del_date", "N/A")
 
                     # Bullet point with line details
-                    line_text = f"• Line {line.get('item', 'N/A')} – {line.get('material_code', 'N/A')} – {line.get('short_text', 'N/A')[:40]}"
+                    line_text = f" Line {line.get('item', 'N/A')}  {line.get('material_code', 'N/A')}  {line.get('short_text', 'N/A')[:40]}"
                     c.drawString(0.75 * inch, y_pos, line_text)
                     y_pos -= 0.15 * inch
 
@@ -13935,7 +14005,7 @@ class EmailReminderWindow(tk.Toplevel):
                             else:
                                 etd_date = reschedule_date
                             display_date = etd_date.strftime("%d.%m.%Y")
-                        except:
+                        except Exception:
                             display_date = reschedule_date_str
                     else:
                         # No reschedule date, use requested date
@@ -14014,6 +14084,7 @@ class EmailReminderWindow(tk.Toplevel):
         try:
             method = self.get_send_method()
             sender = EmailSender(self.log, self.dm)
+            use_custom_sig = self.use_custom_sig_var.get()
 
             sent_count = 0
             failed_count = 0
@@ -14039,40 +14110,22 @@ class EmailReminderWindow(tk.Toplevel):
 
                 try:
                     if method == "Outlook" and OUTLOOK_AVAILABLE:
-                        import win32com.client
-
-                        # Get custom signature
-                        custom_signature = self.dm.get_signature()
-                        
-                        outlook = win32com.client.Dispatch("outlook.application")
-                        mail = outlook.CreateItem(0)
-                        mail.To = to_emails
-                        mail.Subject = subject
-                        
-                        # Get Outlook default signature
-                        outlook_signature = sender._get_outlook_signature()
-                        
-                        # Combine body with signatures
-                        if custom_signature or outlook_signature:
-                            combined_signature = ""
-                            if custom_signature:
-                                combined_signature += custom_signature
-                            if outlook_signature:
-                                combined_signature += "<br>" + outlook_signature
-                            mail.HTMLBody = body.replace("\n", "<br>") + "<br><br>" + combined_signature
+                        # Call sender method - Note: _send_outlook only takes one attachment path
+                        # For simplicity, sending only the first PDF here if using Outlook
+                        # If multiple PDFs per vendor, need to adjust logic or send separate emails
+                        success, message = sender._send_outlook(
+                            to_emails, subject, body, pdfs[0] if pdfs else None, use_custom_sig
+                        )
+                        if success:
+                            sent_count += 1
+                            self.log(f"SUCCESS: Sent reminder email to {vendor_name}")
                         else:
-                            mail.Body = body
-
-                        for pdf_path in pdfs:
-                            mail.Attachments.Add(pdf_path)
-
-                        mail.Send()
-                        sent_count += 1
-                        self.log(f"SUCCESS: Sent reminder email to {vendor_name}")
+                            failed_count += 1
+                            failed_details.append(f"{vendor_name}: {message}")
                     else:
-                        # Use the new multiple attachments method (already has signature support)
+                        # Use the new multiple attachments method (with signature support)
                         success, message = sender._send_smtp_multiple_attachments(
-                            to_emails, subject, body, pdfs
+                            to_emails, subject, body, pdfs, use_custom_sig
                         )
                         if success:
                             sent_count += 1
@@ -14261,7 +14314,7 @@ class EmailConfirmationScanner:
                                 received_time.minute,
                                 received_time.second,
                             )
-                        except:
+                        except Exception:
                             continue
 
                         if received_dt < cutoff_date:
@@ -14382,7 +14435,7 @@ class EmailConfirmationScanner:
             text = (subject + " " + body).lower()
 
             return self._is_confirmation_email_filtered(text)
-        except:
+        except Exception:
             return False
 
     def _extract_po_numbers_from_outlook(self, message):
@@ -14399,9 +14452,8 @@ class EmailConfirmationScanner:
             for pattern in self.po_patterns:
                 matches = re.findall(pattern, text, re.IGNORECASE)
                 po_numbers.update(matches)
-        except:
-            pass
-
+        except Exception:  # TODO: Add proper error handling
+            pass  # TODO: Add proper error handling
         return list(po_numbers)
 
     def scan_emails(self, email_config, days_back=7, mark_as_read=False):
@@ -14613,7 +14665,7 @@ class EmailConfirmationScanner:
             if isinstance(part, bytes):
                 try:
                     decoded_header += part.decode(encoding or "utf-8", errors="ignore")
-                except:
+                except Exception:
                     decoded_header += part.decode("utf-8", errors="ignore")
             else:
                 decoded_header += str(part)
@@ -14638,16 +14690,15 @@ class EmailConfirmationScanner:
                             "utf-8", errors="ignore"
                         )
                         break
-                    except:
-                        pass
+                    except Exception:  # TODO: Add proper error handling
+                        pass  # TODO: Add proper error handling
         else:
             try:
                 body = email_message.get_payload(decode=True).decode(
                     "utf-8", errors="ignore"
                 )
-            except:
-                pass
-
+            except Exception:  # TODO: Add proper error handling
+                pass  # TODO: Add proper error handling
         return body
 
     def _po_exists_in_database(self, po_number):
@@ -14712,19 +14763,19 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
         if OUTLOOK_AVAILABLE:
             ttk.Radiobutton(
                 method_frame,
-                text="📧 Use Outlook (Recommended)",
+                text=" Use Outlook (Recommended)",
                 variable=self.scan_method_var,
                 value="outlook",
                 command=self.toggle_method,
             ).pack(anchor="w", pady=2)
         else:
             ttk.Label(
-                method_frame, text="⚠ Outlook not available", foreground="orange"
+                method_frame, text=" Outlook not available", foreground="orange"
             ).pack(anchor="w", pady=2)
 
         ttk.Radiobutton(
             method_frame,
-            text="📨 Use IMAP (Gmail, etc.)",
+            text=" Use IMAP (Gmail, etc.)",
             variable=self.scan_method_var,
             value="imap",
             command=self.toggle_method,
@@ -14776,7 +14827,7 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
 
         # NEW: Keyword Filters Section
         filters_frame = ttk.LabelFrame(
-            main_frame, text="⚙ Keyword Filters (Advanced)", padding=10
+            main_frame, text=" Keyword Filters (Advanced)", padding=10
         )
         filters_frame.pack(fill=tk.X, pady=(0, 10))
 
@@ -14784,7 +14835,7 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
         include_frame = ttk.Frame(filters_frame)
         include_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(include_frame, text="✅ Include Keywords (comma-separated):").pack(
+        ttk.Label(include_frame, text=" Include Keywords (comma-separated):").pack(
             anchor="w"
         )
         ttk.Label(
@@ -14805,7 +14856,7 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
         exclude_frame = ttk.Frame(filters_frame)
         exclude_frame.pack(fill=tk.X, pady=5)
 
-        ttk.Label(exclude_frame, text="❌ Exclude Keywords (comma-separated):").pack(
+        ttk.Label(exclude_frame, text=" Exclude Keywords (comma-separated):").pack(
             anchor="w"
         )
         ttk.Label(
@@ -14827,12 +14878,12 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
         filter_btn_frame.pack(fill=tk.X, pady=5)
 
         ttk.Button(
-            filter_btn_frame, text="💾 Save Filters", command=self.save_filters
+            filter_btn_frame, text=" Save Filters", command=self.save_filters
         ).pack(side=tk.LEFT, padx=5)
         ttk.Button(
-            filter_btn_frame, text="🔄 Reset to Default", command=self.reset_filters
+            filter_btn_frame, text=" Reset to Default", command=self.reset_filters
         ).pack(side=tk.LEFT, padx=5)
-        ttk.Button(filter_btn_frame, text="ℹ️ Help", command=self.show_filter_help).pack(
+        ttk.Button(filter_btn_frame, text=" Help", command=self.show_filter_help).pack(
             side=tk.LEFT, padx=5
         )
 
@@ -14858,19 +14909,19 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
         button_frame.pack(fill=tk.X, pady=(0, 10))
 
         self.save_config_btn = ttk.Button(
-            button_frame, text="💾 Save IMAP Configuration", command=self.save_config
+            button_frame, text=" Save IMAP Configuration", command=self.save_config
         )
         self.save_config_btn.pack(side=tk.LEFT, padx=5)
 
         ttk.Button(
             button_frame,
-            text="📧 Scan Emails Now",
+            text=" Scan Emails Now",
             command=self.scan_emails,
             style="Accent.TButton",
         ).pack(side=tk.LEFT, padx=5)
         ttk.Button(
             button_frame,
-            text="📁 Open Confirmations Folder",
+            text=" Open Confirmations Folder",
             command=self.open_confirmations_folder,
         ).pack(side=tk.LEFT, padx=5)
 
@@ -14969,12 +15020,12 @@ class EmailConfirmationScannerWindow(tk.Toplevel):
         """Show help information about keyword filters"""
         help_text = """Keyword Filters Help
         
-INCLUDE KEYWORDS (✅):
+INCLUDE KEYWORDS ():
 - Emails MUST contain at least ONE of these keywords
 - Increases probability of finding confirmations
 - Examples: confirmation, acknowledge, accepted
 
-EXCLUDE KEYWORDS (❌):
+EXCLUDE KEYWORDS ():
 - Emails containing ANY of these will be FILTERED OUT
 - Prevents false positives (invoices, receipts, etc.)
 - Examples: invoice, payment, overdue
@@ -14986,8 +15037,8 @@ TIPS:
 - Test with a small date range first (1-2 days)
 
 EXAMPLES:
-✅ Good include: "order confirmation, po confirmation, acknowledged"
-❌ Good exclude: "invoice, receipt, payment reminder"
+ Good include: "order confirmation, po confirmation, acknowledged"
+ Good exclude: "invoice, receipt, payment reminder"
 """
         messagebox.showinfo("Keyword Filters Help", help_text, parent=self)
 
@@ -15049,7 +15100,7 @@ EXAMPLES:
 
         try:
             days_back = int(self.days_back_var.get())
-        except:
+        except Exception:
             days_back = 7
 
         mark_as_read = self.mark_read_var.get()
